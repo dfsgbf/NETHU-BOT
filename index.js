@@ -16,6 +16,9 @@ const DEFAULT_MONGO = 'mongodb+srv://diniduheshan2007_db_user:SZD7sfcIU6Einajx@c
 const CHAT_API = 'https://api.chamindu.site/api/v1/ai/chatgpt';
 const DEFAULT_CHAT_KEY = 'chama_api_9c55e3c6d014abbdf65054f9046a920b'; // මෙතනට key එක
 // -------------------------------------------------
+// ---------- Download API key (chamindu.site) ----------
+const DEFAULT_API_KEY = 'chama_api_9c55e3c6d014abbdf65054f9046a920b';
+// -------------------------------------------------------
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'nethu123'; // වෙනස් කරන්න!
 const PORT = process.env.PORT || 3000;
 const logger = pino({ level: 'silent' });
@@ -30,7 +33,12 @@ const db = mongo.db();
 console.log('✅ MongoDB connected');
 
 // ---------- Settings ----------
-const DEF = { provider: 'chatgpt', chatKey: '', botName: 'Nethu', owner: '', sudo: '', logo: '', geminiKey: '', model: 'gemini-2.0-flash' };
+const B = 'https://api.chamindu.site/api/v1';
+const DEF = {
+  apiKey: '',
+  epYtmp3: B + '/youtube/mp3?url={url}&quality=320kbps&api_key={key}',
+  epYtmp4: '', epTiktok: '', epFb: '', epIg: '',
+  provider: 'chatgpt', chatKey: '', botName: 'Nethu', owner: '', sudo: '', logo: '', geminiKey: '', model: 'gemini-2.0-flash' };
 let S = { ...DEF, ...((await db.collection('settings').findOne({ _id: 'main' })) || {}) };
 delete S._id;
 const saveSettings = () => db.collection('settings').replaceOne({ _id: 'main' }, { _id: 'main', ...S }, { upsert: true });
@@ -57,8 +65,9 @@ async function useMongoAuth(col, sid) {
 
 // ---------- AI (Gemini) ----------
 const SYS = () => `ඔබ "${S.botName}" නම් WhatsApp AI සහායිකාවයි. පරිශීලකයාගේ පණිවිඩය තේරුම් අරගෙන JSON පමණක් දෙන්න:
-{"action":"chat|song|set_name|set_bio|set_dp|none","query":"","value":"","reply":""}
+{"action":"chat|song|video|set_name|set_bio|set_dp|none","query":"","value":"","reply":""}
 - song: සින්දුවක් ඉල්ලුවොත් (query = සින්දුවේ නම/ගායකයා)
+- video: වීඩියෝවක් ඉල්ලුවොත් (query = නම)
 - set_name: WhatsApp නම වෙනස් කරන්න (value = අලුත් නම)
 - set_bio: about/bio වෙනස් කරන්න (value = අලුත් bio)
 - set_dp: profile picture වෙනස් කරන්න (රූපයක් අවශ්‍යයි)
@@ -97,7 +106,31 @@ async function ai(text, hasImage) {
   } catch (e) { return { action: 'chat', reply: '⚠️ AI error: ' + e.message }; }
 }
 
-async function getSong(q) {
+async function callApi(tpl, v = {}) {
+  const url = tpl.replace('{url}', encodeURIComponent(v.url || '')).replace('{query}', encodeURIComponent(v.query || ''))
+    .replace('{key}', encodeURIComponent(S.apiKey || DEFAULT_API_KEY));
+  const r = await fetch(url); const ct = r.headers.get('content-type') || '';
+  if (/^(audio|video)/.test(ct)) return { buf: Buffer.from(await r.arrayBuffer()), title: v.query || '' };
+  const j = await r.json(); const urls = []; let title = v.query || '';
+  (function walk(o, k = '') { if (typeof o === 'string') { if (/^https?:\/\//.test(o)) urls.push([k, o]); else if (/title|name/i.test(k) && o.length < 150) title = o; }
+    else if (o && typeof o === 'object') for (const [kk, x] of Object.entries(o)) walk(x, kk); })(j);
+  const pref = ['download', 'dl', 'mp3', 'mp4', 'audio', 'video', 'url', 'link'];
+  const rank = k => { const i = pref.findIndex(p => k.toLowerCase().includes(p)); return i < 0 ? 99 : i; };
+  urls.sort((x, y) => rank(x[0]) - rank(y[0]));
+  const au = urls.find(([k, u]) => !/thumb|image|cover|avatar|poster/i.test(k) && !/\.(jpe?g|png|webp)(\?|$)/i.test(u));
+  if (!au) throw new Error('API එකෙන් download link එකක් ආවේ නෑ: ' + JSON.stringify(j).slice(0, 150));
+  const a = await fetch(au[1]); if (!a.ok) throw new Error('media download fail');
+  const buf = Buffer.from(await a.arrayBuffer()); if (buf.length > 100 * 1024 * 1024) throw new Error('ෆයිල් එක ලොකු වැඩියි');
+  return { buf, title };
+}
+async function getSong(q, video = false) {
+  const tpl = video ? S.epYtmp4 : S.epYtmp3;
+  if (tpl) try { const v = (await ytSearch(q)).videos?.[0];
+    if (v) { const d = await callApi(tpl, { url: v.url, query: q }); return { ...d, title: v.title }; } } catch (e) { console.error('API:', e.message); }
+  if (video) throw new Error('වීඩියෝ API එක settings වල දාලා නෑ');
+  return getSongYt(q);
+}
+async function getSongYt(q) {
   const res = await ytSearch(q); const v = res.videos?.[0];
   if (!v) throw new Error('සින්දුව හොයාගන්න බැරි උනා');
   if (v.seconds > 900) throw new Error('සින්දුව ඉතා දිගයි (විනාඩි 15+)');
@@ -126,9 +159,25 @@ function attach(sock) {
     try {
       const ctx = msg.extendedTextMessage?.contextInfo;
       const imgSrc = msg.imageMessage ? m : ctx?.quotedMessage?.imageMessage ? { key: m.key, message: ctx.quotedMessage } : null;
+      const send = (d, kind) => kind === 'audio'
+        ? sock.sendMessage(jid, { audio: d.buf, mimetype: 'audio/mpeg' }, { quoted: m })
+        : sock.sendMessage(jid, { video: d.buf, mimetype: 'video/mp4', caption: d.title || '' }, { quoted: m });
+      const um = clean.match(/https?:\/\/\S+/);
+      if (um) {
+        const u = um[0], wv = /video|වීඩියෝ|mp4/i.test(clean); let tpl, kind = 'video';
+        if (/tiktok\.com/i.test(u)) tpl = S.epTiktok;
+        else if (/youtu\.?be/i.test(u)) { tpl = wv ? S.epYtmp4 : S.epYtmp3; kind = wv ? 'video' : 'audio'; }
+        else if (/facebook\.com|fb\.watch/i.test(u)) tpl = S.epFb;
+        else if (/instagram\.com/i.test(u)) tpl = S.epIg;
+        if (tpl) { await reply('⏳ download කරනවා...'); return send(await callApi(tpl, { url: u }), kind); }
+        if (/tiktok|youtu|facebook|fb\.watch|instagram/i.test(u)) return reply('⚠️ මේ site එකේ API එක settings වල දාලා නෑ.');
+      }
       const a = await ai(clean, !!imgSrc);
       const me = jidNormalizedUser(sock.user.id);
-      if (a.action === 'song') {
+      if (a.action === 'video') {
+        await reply(a.reply || '🎬 වීඩියෝව හොයනවා...');
+        const s2 = await getSong(a.query || clean, true); await send(s2, 'video');
+      } else if (a.action === 'song') {
         await reply(a.reply || '🎵 සින්දුව හොයනවා...');
         const s = await getSong(a.query || clean);
         await sock.sendMessage(jid, { audio: s.buf, mimetype: 'audio/mp4', ptt: false }, { quoted: m });
