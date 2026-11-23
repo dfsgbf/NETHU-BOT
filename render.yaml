@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: nethu-ai-bot
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: ADMIN_PASSWORD
+        value: nethu123
