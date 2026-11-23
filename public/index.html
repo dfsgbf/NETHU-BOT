@@ -17,7 +17,7 @@ small{color:var(--mu);display:block;margin-bottom:6px}.err{color:#e5484d;font-si
 </style></head><body>
 <header><img id="logo"><h1 id="title">Nethu AI Bot</h1><button class="gear" onclick="openSet()">⚙️</button></header>
 <div id="slots"></div>
-<div class="card" id="panel"><h3 style="margin-top:0">⚙️ Settings</h3><div id="form"></div>
+<div class="card" id="panel"><h3 style="margin-top:0">⚙️ Settings</h3><small>API URL වල link එක යන තැනට {url}, key එකට {key}, නමට {query} ලියන්න.</small><div id="form"></div>
 <button class="p" onclick="save()">💾 Save</button><button onclick="panel.style.display='none'">Close</button><div id="msg" class="err"></div></div>
 <script>
 const $=id=>document.getElementById(id);let adm='';
@@ -34,7 +34,7 @@ const a=document.activeElement;if(a&&a.tagName==='INPUT'&&a.id.startsWith('n'))r
 $('slots').innerHTML=slotHTML(1,d.slots[1])+slotHTML(2,d.slots[2])}
 async function pair(i){const r=await api('/api/pair',{slot:i,number:$('n'+i).value});if(r.error)alert(r.error);load()}
 async function out(i){if(confirm('Logout කරන්නද?')){await api('/api/logout',{slot:i});load()}}
-const F=[['botName','Bot Name'],['owner','Bot / Owner number (94...)'],['sudo','Sudo numbers (කොමාවෙන් වෙන් කරන්න)'],['logo','Logo URL'],['provider','AI Provider (chatgpt / gemini)'],['chatKey','ChatGPT API Key (chamindu)'],['geminiKey','Gemini API Key'],['model','AI Model'],['mongoUrl','MongoDB URL (වෙනස් කළොත් restart වෙයි)']];
+const F=[['botName','Bot Name'],['owner','Bot / Owner number (94...)'],['sudo','Sudo numbers (කොමාවෙන් වෙන් කරන්න)'],['logo','Logo URL'],['provider','AI Provider (chatgpt / gemini)'],['chatKey','ChatGPT API Key (chamindu)'],['geminiKey','Gemini API Key'],['apiKey','API Key (chamindu.site)'],['epYtmp3','YouTube MP3 API'],['epYtmp4','YouTube MP4 (video) API'],['epTiktok','TikTok API'],['epFb','Facebook API'],['epIg','Instagram API'],['model','AI Model'],['mongoUrl','MongoDB URL (වෙනස් කළොත් restart වෙයි)']];
 async function openSet(){adm=prompt('Admin password');if(!adm)return;const d=await api('/api/settings',null,{'x-admin':adm});
 if(d.error)return alert(d.error);$('form').innerHTML=F.map(([k,l])=>`<label>${l}</label><input id="f_${k}" value="${(d[k]||'').replace(/"/g,'&quot;')}">`).join('');panel.style.display='block';panel.scrollIntoView()}
 async function save(){const b={};F.forEach(([k])=>b[k]=$('f_'+k).value);const r=await api('/api/settings',b,{'x-admin':adm});
