@@ -12,6 +12,10 @@ const { default: makeWASocket, initAuthCreds, BufferJSON, proto, Browsers, Disco
 // ---------- මෙතනට ඔයාගේ MongoDB URL එක දාන්න ----------
 const DEFAULT_MONGO = 'mongodb+srv://diniduheshan2007_db_user:SZD7sfcIU6Einajx@cluster0.ah8jggk.mongodb.net/dark-dinu?retryWrites=true&w=majority&appName=Cluster0';
 // -------------------------------------------------------
+// ---------- ChatGPT API (chamindu.site) ----------
+const CHAT_API = 'https://api.chamindu.site/api/v1/ai/chatgpt';
+const DEFAULT_CHAT_KEY = 'chama_api_9c55e3c6d014abbdf65054f9046a920b'; // මෙතනට key එක
+// -------------------------------------------------
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'nethu123'; // වෙනස් කරන්න!
 const PORT = process.env.PORT || 3000;
 const logger = pino({ level: 'silent' });
@@ -26,7 +30,7 @@ const db = mongo.db();
 console.log('✅ MongoDB connected');
 
 // ---------- Settings ----------
-const DEF = { botName: 'Nethu', owner: '', sudo: '', logo: '', geminiKey: '', model: 'gemini-2.0-flash' };
+const DEF = { provider: 'chatgpt', chatKey: '', botName: 'Nethu', owner: '', sudo: '', logo: '', geminiKey: '', model: 'gemini-2.0-flash' };
 let S = { ...DEF, ...((await db.collection('settings').findOne({ _id: 'main' })) || {}) };
 delete S._id;
 const saveSettings = () => db.collection('settings').replaceOne({ _id: 'main' }, { _id: 'main', ...S }, { upsert: true });
@@ -61,7 +65,7 @@ const SYS = () => `ඔබ "${S.botName}" නම් WhatsApp AI සහායි�
 - chat: සාමාන්‍ය කතාබහ (reply = පිළිතුර)
 පරිශීලකයා කතා කරන භාෂාවෙන් (සිංහල/English/Singlish) කෙටි, මිත්‍රශීලී reply එකක් "reply" හි දෙන්න.`;
 
-async function ai(text, hasImage) {
+async function aiGemini(text, hasImage) {
   if (!S.geminiKey) return { action: 'chat', reply: '⚠️ Gemini API key එක settings වල දාලා නෑ.' };
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${S.model}:generateContent?key=${S.geminiKey}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -73,6 +77,24 @@ async function ai(text, hasImage) {
   const t = j?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!t) return { action: 'chat', reply: '⚠️ AI error: ' + (j?.error?.message || 'no response') };
   try { return JSON.parse(t.replace(/```json|```/g, '').trim()); } catch { return { action: 'chat', reply: t }; }
+}
+
+async function askChat(prompt) {
+  const key = S.chatKey || DEFAULT_CHAT_KEY;
+  const r = await fetch(`${CHAT_API}?prompt=${encodeURIComponent(prompt)}&api_key=${encodeURIComponent(key)}`);
+  const raw = await r.text(); let j; try { j = JSON.parse(raw); } catch { return raw; }
+  const pick = o => { if (typeof o === 'string') return o; if (!o || typeof o !== 'object') return null;
+    for (const k of ['result', 'response', 'answer', 'message', 'text', 'data', 'content', 'reply']) { const v = pick(o[k]); if (v) return v; } return null; };
+  return pick(j) || raw;
+}
+async function ai(text, hasImage) {
+  if (S.provider === 'gemini') return aiGemini(text, hasImage);
+  try {
+    const out = await askChat(`${SYS()}\n\nපරිශීලක පණිවිඩය: ${text}\n(රූපයක් ${hasImage ? 'ඇත' : 'නැත'})\n\nJSON පමණක් දෙන්න, වෙන කිසිවක් නොලියන්න.`);
+    const m = out.match(/\{[\s\S]*\}/);
+    if (m) { try { const j = JSON.parse(m[0]); if (j.action) return j; } catch {} }
+    return { action: 'chat', reply: out };
+  } catch (e) { return { action: 'chat', reply: '⚠️ AI error: ' + e.message }; }
 }
 
 async function getSong(q) {
