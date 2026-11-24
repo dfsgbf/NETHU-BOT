@@ -1,4 +1,4 @@
-// ================= NETHU AI WHATSAPP BOT (3 device - FIXED & UPGRADED) =================
+// ================= NETHU AI WHATSAPP BOT (3 device - FULL UPGRADE) =================
 import express from 'express';
 import fs from 'fs';
 import pino from 'pino';
@@ -51,8 +51,6 @@ const digits = (x = '') => String(x).replace(/\D/g, '');
 const sudoList = () => [S.owner, ...String(S.sudo).split(',')].map(digits).filter(Boolean);
 const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const nameList = () => [...new Set([...S.names.split(','), S.botName].map(x => x.trim().toLowerCase()).filter(Boolean))].sort((a, b) => b.length - a.length);
-
-// Improved Regex for both English & Sinhala word boundaries
 const nameRe = n => new RegExp(`(?:^|[\\s,.:;!?'"()\\[\\]])${esc(n)}(?:$|[\\s,.:;!?'"()\\[\\]])`, 'i');
 
 // ---------- Mongo Auth State ----------
@@ -92,12 +90,18 @@ const memCol = db.collection('memory');
 const memGet = async id => (await memCol.findOne({ _id: id })) || { _id: id, facts: {}, hist: [] };
 const memSave = m => memCol.replaceOne({ _id: m._id }, m, { upsert: true });
 
-// ---------- AI Engine (With Vision Support) ----------
+// ---------- AI Engine ----------
 const CREATOR_PHOTO = 'https://files.catbox.moe/17p3nr.jpg';
 const SYS = () => `You are "${S.botName}", a WhatsApp AI assistant. Talk warmly and lovingly (like bbh, sudu, manika) in the user's language (Sinhala script / English / Singlish), keep replies short.
-Creator: Dinidu Heshan (also heshan / හේෂාන්), age 19, from Embilipitiya. If asked who made you, say this. Give phone 0719845166 ONLY if asked for his number. If asked for his photo use action send_photo with value ${CREATOR_PHOTO}.
+Creator: Dinidu Heshan (also heshan / හේෂාන් / dinidu / දිනිදු), age 19, from Embilipitiya. If asked who made you, say this. Give phone 0719845166 ONLY if asked for his number.
+IMPORTANT RULES:
+1. If user asks for a photo/pic/image of you (${S.botName}) OR creator (Dinidu/Heshan/හේෂාන්/දිනිදු), set "action": "send_photo" and "value": "${CREATOR_PHOTO}".
+2. If user replies to a ViewOnce/photo/video asking to see it again / send it again / save it ("මේ පොටෝ එක ආයෙ දෙන්න", "ආයෙ එවන්න", "viewonce", "open"), set "action": "viewonce".
+3. If user asks to add/set/change sudo number ("sudo එකට ... දාන්න", "add sudo"), set "action": "set_sudo" and "value": "<phone_number>".
+4. If user asks for JID or LID ("jid එක දෙන්න", "lid එක දෙන්න", "get jid"), set "action": "get_jid".
+
 Understand the message and output ONLY JSON: {"action":"","query":"","value":"","reply":"","remember":{}}
-actions: chat(normal talk) | song(query=name) | video(query=youtube video name) | sticker(turn replied/sent image into sticker) | set_name(value=new WhatsApp name) | set_bio(value) | set_dp(needs image) | get_dp(value=phone number) | post_status(media or value=text) | save_status(save replied status/media to owner) | send_photo(value=url) | tagall(value=msg, groups) | alive
+actions: chat | song(query=name) | video(query=youtube video name) | sticker | viewonce | set_sudo(value=number) | get_jid | set_name(value=new WhatsApp name) | set_bio(value) | set_dp | get_dp(value=phone number) | post_status(media or value=text) | save_status | send_photo(value=url) | tagall(value=msg) | alive
 remember: facts the user tells about themselves (name, age, place, likes), e.g. {"name":"Kasun"}; else {}.
 reply: always a short loving reply.`;
 
@@ -138,11 +142,8 @@ async function askChat(prompt) {
 
 async function aiGemini(prompt, imgBuf = null) {
   if (!S.geminiKey) return { action: 'chat', reply: '⚠️ Gemini key එක settings වල දාලා නෑ.' };
-  
   const parts = [{ text: prompt }];
-  if (imgBuf) {
-    parts.push({ inlineData: { mimeType: 'image/jpeg', data: imgBuf.toString('base64') } });
-  }
+  if (imgBuf) parts.push({ inlineData: { mimeType: 'image/jpeg', data: imgBuf.toString('base64') } });
 
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${S.model}:generateContent?key=${S.geminiKey}`, {
     method: 'POST',
@@ -238,30 +239,51 @@ async function getVideo(q) {
   return { buf: d.buf, title: v.title };
 }
 
-// ---------- Helpers ----------
-const unwrap = x => x?.ephemeralMessage?.message || x?.viewOnceMessage?.message || x?.viewOnceMessageV2?.message || x;
+// ---------- Helpers (Enhanced ViewOnce & Media Unwrap) ----------
+function unwrap(x) {
+  if (!x) return x;
+  if (x.ephemeralMessage?.message) return unwrap(x.ephemeralMessage.message);
+  if (x.viewOnceMessage?.message) return unwrap(x.viewOnceMessage.message);
+  if (x.viewOnceMessageV2?.message) return unwrap(x.viewOnceMessageV2.message);
+  if (x.viewOnceMessageV2Extension?.message) return unwrap(x.viewOnceMessageV2Extension.message);
+  if (x.documentWithCaptionMessage?.message) return unwrap(x.documentWithCaptionMessage.message);
+  return x;
+}
+
 const textOf = g => g.conversation || g.extendedTextMessage?.text || g.imageMessage?.caption || g.videoMessage?.caption || '';
 const ctxOf = g => Object.values(g).find(v => v && typeof v === 'object' && v.contextInfo)?.contextInfo;
 
 function findMedia(m) {
   const g = unwrap(m.message);
   if (!g) return null;
-  const own = g.imageMessage ? 'image' : g.videoMessage ? 'video' : null;
-  if (own) return { type: own, src: m };
+  const own = g.imageMessage ? 'image' : g.videoMessage ? 'video' : g.audioMessage ? 'audio' : null;
+  if (own) return { type: own, src: m, isQuoted: false };
+  
   const c = ctxOf(g);
   const q = unwrap(c?.quotedMessage);
   if (!q) return null;
   const t = q.imageMessage ? 'image' : q.videoMessage ? 'video' : q.audioMessage ? 'audio' : null;
   if (!t) return null;
-  return { type: t, src: { key: { remoteJid: c.remoteJid || m.key.remoteJid, id: c.stanzaId, participant: c.participant }, message: q } };
+  return {
+    type: t,
+    isQuoted: true,
+    src: {
+      key: { remoteJid: c.remoteJid || m.key.remoteJid, id: c.stanzaId, participant: c.participant },
+      message: q
+    }
+  };
 }
 
 const dl = (sock, md) => downloadMediaMessage(md.src, 'buffer', {}, { logger, reuploadRequest: sock.updateMediaMessage });
 
-async function sendMediaTo(sock, to, md, caption = '') {
+async function sendMediaTo(sock, to, md, caption = '', quoted = undefined) {
   const buf = await dl(sock, md);
-  const c = md.type === 'image' ? { image: buf, caption } : md.type === 'video' ? { video: buf, caption } : { audio: buf, mimetype: 'audio/mpeg' };
-  return sock.sendMessage(to, c);
+  const c = md.type === 'image'
+    ? { image: buf, caption }
+    : md.type === 'video'
+    ? { video: buf, caption }
+    : { audio: buf, mimetype: 'audio/mpeg' };
+  return sock.sendMessage(to, c, quoted ? { quoted } : {});
 }
 
 function sendBuf(sock, jid, buf, kind, title, quoted) {
@@ -269,6 +291,17 @@ function sendBuf(sock, jid, buf, kind, title, quoted) {
   const s = buf.subarray(0, 12);
   const img = (s[0] === 0xFF && s[1] === 0xD8) || (s[0] === 0x89 && s[1] === 0x50) || s.toString('ascii', 0, 3) === 'GIF' || s.toString('ascii', 8, 12) === 'WEBP';
   return sock.sendMessage(jid, img ? { image: buf, caption: title || '' } : { video: buf, mimetype: 'video/mp4', caption: title || '' }, { quoted });
+}
+
+async function sendCreatorPhoto(sock, jid, caption, quoted) {
+  try {
+    const res = await fetch(CREATOR_PHOTO);
+    if (!res.ok) throw new Error('Fetch failed');
+    const pBuf = Buffer.from(await res.arrayBuffer());
+    return await sock.sendMessage(jid, { image: pBuf, caption }, { quoted });
+  } catch {
+    return await sock.sendMessage(jid, { image: { url: CREATOR_PHOTO }, caption }, { quoted });
+  }
 }
 
 const contacts = {};
@@ -327,10 +360,12 @@ async function onMessage(sock, id, m) {
   const md = findMedia(m);
   const reply = t => sock.sendMessage(jid, { text: t }, { quoted: m });
 
+  // Owner status reply save
   if (isOwner && ctx?.remoteJid === 'status@broadcast' && md && /send|save|denna|dapan|ewanna|ewnna|evanna|එවන්න|දෙන්න|දාපන්|සේව්/i.test(text)) {
     return void await sendMediaTo(sock, me, md, '💾 saved status');
   }
 
+  // Trigger check
   const hit = nameList().filter(n => nameRe(n).test(text));
   if (!hit.length) return;
 
@@ -352,6 +387,48 @@ async function onMessage(sock, id, m) {
   };
 
   try {
+    // 1. Direct JID / LID Command
+    if (/\b(jid|lid)\b/i.test(clean)) {
+      const targetUser = ctx?.participant ? jidNormalizedUser(ctx.participant) : rawSender;
+      const rawParticipant = ctx?.participant || m.key.participant || jid;
+      let info = `🆔 *JID / LID Details*\n\n`;
+      info += `• *Chat JID:* \`${jid}\`\n`;
+      info += `• *User JID:* \`${targetUser}\`\n`;
+      if (rawParticipant.includes('@lid') || (m.key.participantAlt)) {
+        info += `• *User LID:* \`${rawParticipant.includes('@lid') ? rawParticipant : m.key.participantAlt}\`\n`;
+      }
+      return void await reply(info.trim());
+    }
+
+    // 2. Direct Sudo Add/Change Command (Owner Only)
+    if (/\bsudo\b/i.test(clean) && /(add|set|change|danna|දාන්න|කරන්න|වෙනස්)/i.test(clean)) {
+      if (ownerOnly()) return;
+      const numMatch = clean.match(/(?:\+?\d[\d\s-]{7,15}\d)/);
+      if (!numMatch) return void await reply('📞 Sudo එකට දාන්න ඕන අංකයත් එක්ක කියන්න. (උදා: නෙතු sudo එකට 0771234567 දාන්න)');
+      let newNum = digits(numMatch[0]);
+      if (newNum.startsWith('0') && newNum.length === 10) newNum = '94' + newNum.slice(1);
+      
+      const currentSudos = sudoList();
+      if (!currentSudos.includes(newNum)) {
+        S.sudo = S.sudo ? `${S.sudo},${newNum}` : newNum;
+        await saveSettings();
+      }
+      return void await reply(`✅ හරි බබා! *+${newNum}* Sudo list එකට add කළා. දැන් එයාටත් මාව control කරන්න පුළුවන් 🥰`);
+    }
+
+    // 3. Direct ViewOnce Recovery Command
+    if (md?.isQuoted && /(viewonce|view once|ආයෙ|ආයේ|open|බලන්න|save|එවන්න|දෙන්න)/i.test(clean) && !/(status|ස්ටේටස්)/i.test(clean)) {
+      if (ownerOnly()) return;
+      await sendMediaTo(sock, jid, md, '👀 මෙන්න ඒක ආයෙමත් 🥰', m);
+      return;
+    }
+
+    // 4. Direct Creator / Bot Photo Trigger
+    if (/(photo|pic|image|dp|පොටෝ|ෆොටෝ|පින්තූර|රූප)/i.test(clean) && /(dinidu|heshan|creator|owner|ඔයාගේ|ඔයාගෙ|දිනිදු|හේෂාන්|හදපු)/i.test(clean)) {
+      return void await sendCreatorPhoto(sock, jid, 'මේ ඉන්නේ මාව හදපු මගේ අයියා (දිනිදු හේෂාන්) 🥰❤️', m);
+    }
+
+    // 5. Direct Link Downloader
     const um = clean.match(/https?:\/\/\S+/);
     if (um) {
       const r = routeLink(um[0], clean);
@@ -362,6 +439,7 @@ async function onMessage(sock, id, m) {
       }
     }
 
+    // 6. AI Processing
     let imgBuf = null;
     if (S.provider === 'gemini' && md?.type === 'image') {
       imgBuf = await dl(sock, md).catch(() => null);
@@ -389,6 +467,32 @@ async function onMessage(sock, id, m) {
         if (md?.type !== 'image') return void await reply('🖼️ ස්ටිකර් එකක් හදන්න රූපයක් එක්ක (හෝ රූපයකට reply කරලා) කියන්න.');
         const buf = imgBuf || await dl(sock, md);
         await sock.sendMessage(jid, { sticker: buf }, { quoted: m });
+        break;
+      }
+      case 'viewonce': {
+        if (ownerOnly()) return;
+        if (!md) return void await reply('👀 ආයෙ බලන්න ඕන photo හෝ video එකට reply කරලා කියන්න.');
+        await sendMediaTo(sock, jid, md, say, m);
+        break;
+      }
+      case 'set_sudo': {
+        if (ownerOnly()) return;
+        let newNum = digits(a.value || a.query);
+        if (newNum.startsWith('0') && newNum.length === 10) newNum = '94' + newNum.slice(1);
+        if (!newNum || newNum.length < 9) return void await reply('📞 නිවැරදි දුරකථන අංකයක් දෙන්න.');
+        if (!sudoList().includes(newNum)) {
+          S.sudo = S.sudo ? `${S.sudo},${newNum}` : newNum;
+          await saveSettings();
+        }
+        await reply(`${say}\n✅ (+${newNum} Sudo ලෙස එකතු කළා)`);
+        break;
+      }
+      case 'get_jid': {
+        const targetUser = ctx?.participant ? jidNormalizedUser(ctx.participant) : rawSender;
+        const rawParticipant = ctx?.participant || m.key.participant || jid;
+        let info = `🆔 *JID / LID Details*\n\n• *Chat JID:* \`${jid}\`\n• *User JID:* \`${targetUser}\``;
+        if (rawParticipant.includes('@lid')) info += `\n• *User LID:* \`${rawParticipant}\``;
+        await reply(info);
         break;
       }
       case 'set_name':
@@ -435,7 +539,7 @@ async function onMessage(sock, id, m) {
         await reply(say);
         break;
       case 'send_photo':
-        await sock.sendMessage(jid, { image: { url: a.value || CREATOR_PHOTO }, caption: say }, { quoted: m });
+        await sendCreatorPhoto(sock, jid, say, m);
         break;
       case 'tagall': {
         if (ownerOnly()) return;
