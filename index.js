@@ -1,21 +1,29 @@
-// ================= NETHU AI WHATSAPP BOT (3 device - FULL UPGRADE) =================
+// ================= NETHU AI WHATSAPP BOT (3 device - V2 FULL UPGRADE) =================
 import express from 'express';
 import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import pino from 'pino';
 import { MongoClient } from 'mongodb';
 import ytSearch from 'yt-search';
 import baileys from '@whiskeysockets/baileys';
+import { digits, esc, sleep, fetchT, fmtUp, normNum } from './lib/util.js';
+import { createAI } from './lib/ai.js';
+import { intentOf, stripWords } from './lib/intent.js';
+import { createRegistry, registerCommands } from './lib/cmds.js';
 
 const {
   default: makeWASocket, initAuthCreds, BufferJSON, proto, Browsers, DisconnectReason,
   fetchLatestBaileysVersion, downloadMediaMessage, jidNormalizedUser
 } = baileys;
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 // ---------- Anti-Crash Protection ----------
-process.on('uncaughtException', (err) => console.error('⚠️ Uncaught Exception:', err.message));
+process.on('uncaughtException', (err) => console.error('⚠️ Uncaught Exception:', err?.message || err));
 process.on('unhandledRejection', (err) => console.error('⚠️ Unhandled Rejection:', err?.message || err));
 
-// ---------- Config & Env ----------
+// ---------- Config & Env (API + MongoDB kept exactly as before) ----------
 const DEFAULT_MONGO = 'mongodb+srv://diniduheshan2007_db_user:SZD7sfcIU6Einajx@cluster0.ah8jggk.mongodb.net/dark-dinu?retryWrites=true&w=majority&appName=Cluster0';
 const API_BASE = 'https://api.chamindu.site/api/v1';
 const API_KEY = process.env.API_KEY || 'chama_api_9c55e3c6d014abbdf65054f9046a920b';
@@ -26,11 +34,17 @@ const logger = pino({ level: 'silent' });
 const started = Date.now();
 
 let cfg = {};
-try { cfg = JSON.parse(fs.readFileSync('./config.json', 'utf8')); } catch {}
+try { cfg = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8')); } catch {}
 const MONGO_URL = process.env.MONGODB_URL || cfg.mongoUrl || DEFAULT_MONGO;
 
-const mongo = new MongoClient(MONGO_URL);
-await mongo.connect();
+const mongo = new MongoClient(MONGO_URL, { serverSelectionTimeoutMS: 20000 });
+for (let i = 1; ; i++) {
+  try { await mongo.connect(); break; } catch (e) {
+    console.error(`❌ MongoDB connect failed (${i}/5):`, e.message);
+    if (i >= 5) throw e;
+    await sleep(3000 * i);
+  }
+}
 const db = mongo.db();
 console.log('✅ MongoDB connected');
 
@@ -40,23 +54,26 @@ const DEF = {
   names: 'nethu,නෙතූ,නෙතු,bbh,sudu,manika,mnikh,baba,raththaran,sudu manika,love,බබා,මැනික,මැණික,සුදු,සුදූ,cudu,රත්තරන්,pnh,babo,baby,janu,ජානු,adare,ආදරේ,patiya,පැටියා,nangi,නංගි',
   provider: 'chatgpt', geminiKey: '', model: 'gemini-2.5-flash',
   statusSeen: '1', statusReact: '1', reactEmojis: '🥰,❤️,😍,🔥,💖', statusSave: '0',
-  autoRead: '0', autoTyping: '1', alwaysOnline: '0'
+  autoRead: '0', autoTyping: '1', alwaysOnline: '0',
+  // new in V2
+  prefix: '.', mode: 'public', banned: '', antiCall: '0', dmAlways: '0', replyToBot: '1'
 };
 
 let S = { ...DEF, ...((await db.collection('settings').findOne({ _id: 'main' })) || {}) };
 delete S._id;
 const saveSettings = () => db.collection('settings').replaceOne({ _id: 'main' }, { _id: 'main', ...S }, { upsert: true });
 
-const digits = (x = '') => String(x).replace(/\D/g, '');
-const sudoList = () => [S.owner, ...String(S.sudo).split(',')].map(digits).filter(Boolean);
-const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const nameList = () => [...new Set([...S.names.split(','), S.botName].map(x => x.trim().toLowerCase()).filter(Boolean))].sort((a, b) => b.length - a.length);
-const nameRe = n => new RegExp(`(?:^|[\\s,.:;!?'"()\\[\\]])${esc(n)}(?:$|[\\s,.:;!?'"()\\[\\]])`, 'i');
+const userDigits = (j = '') => digits(String(j).split('@')[0].split(':')[0]);
+const sudoList = () => [S.owner, ...String(S.sudo).split(',')].map(normNum).filter(Boolean);
+const bannedList = () => String(S.banned || '').split(',').map(digits).filter(Boolean);
+const nameList = () => [...new Set([...S.names.split(','), S.botName].map((x) => x.trim().toLowerCase()).filter(Boolean))].sort((a, b) => b.length - a.length);
+const nameRe = (n) => new RegExp(`(?:^|[\\s,.:;!?'"()\\[\\]])${esc(n)}(?:$|[\\s,.:;!?'"()\\[\\]])`, 'i');
+const prefixes = () => String(S.prefix || '.').split(',').map((x) => x.trim()).filter(Boolean);
 
-// ---------- Mongo Auth State ----------
+// ---------- Mongo Auth State (unchanged format -> existing sessions keep working) ----------
 async function useMongoAuth(col, sid) {
   const w = (k, d) => col.replaceOne({ _id: `${sid}:${k}` }, { d: JSON.stringify(d, BufferJSON.replacer) }, { upsert: true });
-  const r = async k => {
+  const r = async (k) => {
     const x = await col.findOne({ _id: `${sid}:${k}` });
     return x ? JSON.parse(x.d, BufferJSON.reviver) : null;
   };
@@ -67,14 +84,14 @@ async function useMongoAuth(col, sid) {
       keys: {
         get: async (type, ids) => {
           const o = {};
-          await Promise.all(ids.map(async i => {
+          await Promise.all(ids.map(async (i) => {
             let v = await r(`${type}-${i}`);
             if (type === 'app-state-sync-key' && v) v = proto.Message.AppStateSyncKeyData.fromObject(v);
             o[i] = v;
           }));
           return o;
         },
-        set: async data => {
+        set: async (data) => {
           await Promise.all(Object.entries(data).flatMap(([t, m]) => Object.entries(m).map(([i, v]) =>
             v ? w(`${t}-${i}`, v) : col.deleteOne({ _id: `${sid}:${t}-${i}` })
           )));
@@ -85,102 +102,56 @@ async function useMongoAuth(col, sid) {
   };
 }
 
-// ---------- Memory ----------
+// ---------- Memory / Group config / Warns ----------
 const memCol = db.collection('memory');
-const memGet = async id => (await memCol.findOne({ _id: id })) || { _id: id, facts: {}, hist: [] };
-const memSave = m => memCol.replaceOne({ _id: m._id }, m, { upsert: true });
+const memGet = async (id) => (await memCol.findOne({ _id: id })) || { _id: id, facts: {}, hist: [] };
+const memSave = (m) => memCol.replaceOne({ _id: m._id }, m, { upsert: true });
 
-// ---------- AI Engine ----------
-const CREATOR_PHOTO = 'https://files.catbox.moe/17p3nr.jpg';
-const SYS = () => `You are "${S.botName}", a WhatsApp AI assistant. Talk warmly and lovingly (like bbh, sudu, manika) in the user's language (Sinhala script / English / Singlish), keep replies short.
-Creator: Dinidu Heshan (also heshan / හේෂාන් / dinidu / දිනිදු), age 19, from Embilipitiya. If asked who made you, say this. Give phone 0719845166 ONLY if asked for his number.
-IMPORTANT RULES:
-1. If user asks for a photo/pic/image of you (${S.botName}) OR creator (Dinidu/Heshan/හේෂාන්/දිනිදු), set "action": "send_photo" and "value": "${CREATOR_PHOTO}".
-2. If user replies to a ViewOnce/photo/video asking to see it again / send it again / save it ("මේ පොටෝ එක ආයෙ දෙන්න", "ආයෙ එවන්න", "viewonce", "open"), set "action": "viewonce".
-3. If user asks to add/set/change sudo number ("sudo එකට ... දාන්න", "add sudo"), set "action": "set_sudo" and "value": "<phone_number>".
-4. If user asks for JID or LID ("jid එක දෙන්න", "lid එක දෙන්න", "get jid"), set "action": "get_jid".
+const groupsCol = db.collection('groups');
+const warns = db.collection('warns');
+const gcache = new Map();
+const groupCfg = async (jid) => {
+  if (gcache.has(jid)) return gcache.get(jid);
+  const d = (await groupsCol.findOne({ _id: jid }).catch(() => null)) || { _id: jid };
+  gcache.set(jid, d);
+  return d;
+};
+const saveGroupCfg = async (jid, c) => {
+  gcache.set(jid, c);
+  await groupsCol.replaceOne({ _id: jid }, { ...c, _id: jid }, { upsert: true });
+};
 
-Understand the message and output ONLY JSON: {"action":"","query":"","value":"","reply":"","remember":{}}
-actions: chat | song(query=name) | video(query=youtube video name) | sticker | viewonce | set_sudo(value=number) | get_jid | set_name(value=new WhatsApp name) | set_bio(value) | set_dp | get_dp(value=phone number) | post_status(media or value=text) | save_status | send_photo(value=url) | tagall(value=msg) | alive
-remember: facts the user tells about themselves (name, age, place, likes), e.g. {"name":"Kasun"}; else {}.
-reply: always a short loving reply.`;
-
-function buildPrompt(text, hasMedia, mem, nHist = 3) {
-  const facts = Object.entries(mem.facts || {}).map(([k, v]) => `${k}: ${v}`).join('; ').slice(0, 300) || 'none';
-  const hist = (mem.hist || []).slice(-nHist).map(h => `U: ${h.u.slice(0, 60)}\nB: ${h.a.slice(0, 60)}`).join('\n');
-  return `User memory: ${facts}\nRecent chat:\n${hist || '-'}\n\nMessage: ${text.slice(0, 300)}\n(media attached: ${hasMedia ? 'yes' : 'no'})\nOutput JSON only.`;
+const metaCache = new Map();
+async function getMeta(sock, jid, force = false) {
+  const c = metaCache.get(jid);
+  if (!force && c && Date.now() - c.t < 60000) return c.d;
+  const d = await sock.groupMetadata(jid);
+  metaCache.set(jid, { t: Date.now(), d });
+  return d;
 }
 
-function parseAI(out) {
-  const m = String(out).match(/\{[\s\S]*\}/);
-  if (m) {
-    try {
-      const j = JSON.parse(m[0]);
-      if (j.action) return j;
-    } catch {}
-  }
-  return { action: 'chat', reply: String(out) };
-}
+// ---------- Optional image tools (sharp) ----------
+let sharp = null;
+try { sharp = (await import('sharp')).default; } catch { console.log('ℹ️ sharp නෑ — sticker conversion සීමිතයි (npm i sharp)'); }
+const toWebp = async (buf) => sharp
+  ? sharp(buf).resize(512, 512, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).webp({ quality: 80 }).toBuffer()
+  : buf;
+const toPng = async (buf) => (sharp ? sharp(buf).png().toBuffer() : buf);
 
-async function askChat(prompt) {
-  const r = await fetch(`${API_BASE}/ai/chatgpt?prompt=${encodeURIComponent(prompt)}&api_key=${API_KEY}`);
-  if (!r.ok) throw new Error('AI API error ' + r.status);
-  const raw = await r.text();
-  let j;
-  try { j = JSON.parse(raw); } catch { if (/^\s*</.test(raw)) throw new Error('AI API error (html)'); return raw; }
-  const pick = o => {
-    if (typeof o === 'string') return o;
-    if (!o || typeof o !== 'object') return null;
-    for (const k of ['result', 'response', 'answer', 'message', 'text', 'data', 'content', 'reply']) {
-      const v = pick(o[k]);
-      if (v) return v;
-    }
-    return null;
-  };
-  return pick(j) || raw;
-}
-
-async function aiGemini(prompt, imgBuf = null) {
-  if (!S.geminiKey) return { action: 'chat', reply: '⚠️ Gemini key එක settings වල දාලා නෑ.' };
-  const parts = [{ text: prompt }];
-  if (imgBuf) parts.push({ inlineData: { mimeType: 'image/jpeg', data: imgBuf.toString('base64') } });
-
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${S.model}:generateContent?key=${S.geminiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: SYS() }] },
-      contents: [{ role: 'user', parts }],
-      generationConfig: { responseMimeType: 'application/json', temperature: 0.8 }
-    })
-  });
-  const j = await r.json();
-  const t = j?.candidates?.[0]?.content?.parts?.[0]?.text;
-  return t ? parseAI(t) : { action: 'chat', reply: '⚠️ AI error: ' + (j?.error?.message || 'no response') };
-}
-
-async function ai(text, hasMedia, mem, imgBuf = null) {
-  try {
-    if (S.provider === 'gemini') return await aiGemini(buildPrompt(text, hasMedia, mem, 6), imgBuf);
-    let n = 3, full;
-    do { full = SYS() + '\n\n' + buildPrompt(text, hasMedia, mem, n); } while (encodeURIComponent(full).length > 6000 && n-- > 0);
-    return parseAI(await askChat(full));
-  } catch (e) {
-    return { action: 'chat', reply: '⚠️ AI error: ' + e.message };
-  }
-}
-
-// ---------- Download APIs ----------
-async function callApi(path, params = {}) {
-  const u = new URL(API_BASE + path);
+// ---------- Download APIs (same API, now with timeout + retry) ----------
+async function callApiOnce(p, params = {}) {
+  const u = new URL(API_BASE + p);
   for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
   u.searchParams.set('api_key', API_KEY);
-  
-  const r = await fetch(u);
+
+  const r = await fetchT(u, {}, 120000);
   const ct = r.headers.get('content-type') || '';
   if (/^(audio|video|image)/.test(ct)) return { buf: Buffer.from(await r.arrayBuffer()), title: '' };
-  
-  const j = await r.json();
+
+  const raw = await r.text();
+  let j;
+  try { j = JSON.parse(raw); } catch { throw new Error(`API error ${r.status}`); }
+
   const urls = [];
   let title = '';
   (function walk(o, k = '') {
@@ -193,20 +164,32 @@ async function callApi(path, params = {}) {
   })(j);
 
   const pref = ['download', 'dl', 'mp3', 'mp4', 'audio', 'video', 'hd', 'url', 'link'];
-  const rank = k => { const i = pref.findIndex(p => k.toLowerCase().includes(p)); return i < 0 ? 99 : i; };
+  const rank = (k) => { const i = pref.findIndex((x) => k.toLowerCase().includes(x)); return i < 0 ? 99 : i; };
   urls.sort((x, y) => rank(x[0]) - rank(y[0]));
-  
+
   const au = urls.find(([k, x]) => !/thumb|cover|avatar|poster|preview/i.test(k) && !/\.(jpe?g|png|webp)(\?|$)/i.test(x)) || urls.find(([k]) => /image|photo|src/i.test(k));
   if (!au) throw new Error('API එකෙන් link එකක් ආවේ නෑ.');
-  
-  const a = await fetch(au[1]);
+
+  const a = await fetchT(au[1], {}, 180000);
   if (!a.ok) throw new Error('Media download fail');
   const buf = Buffer.from(await a.arrayBuffer());
   if (buf.length > 100 * 1024 * 1024) throw new Error('ෆයිල් එක 100MB වලට වඩා වැඩියි');
   return { buf, title };
 }
 
-function routeLink(u, clean) {
+async function callApi(p, params = {}) {
+  let last;
+  for (let i = 0; i < 2; i++) {
+    try { return await callApiOnce(p, params); } catch (e) {
+      last = e;
+      if (/100MB/.test(e.message)) break;
+      await sleep(1500);
+    }
+  }
+  throw last;
+}
+
+function routeLink(u, clean = '') {
   const wv = /video|වීඩියෝ|mp4/i.test(clean);
   if (/tiktok\.com/i.test(u)) return { path: '/tiktok', params: { url: u }, kind: 'video' };
   if (/youtu\.?be/i.test(u)) return wv
@@ -224,22 +207,20 @@ async function ytFind(q) {
   if (!v) throw new Error('හොයාගන්න බැරි උනා');
   return v;
 }
-
 async function getSong(q) {
   const v = await ytFind(q);
   if (v.seconds > 900) throw new Error('සින්දුව විනාඩි 15කට වඩා දිගයි');
   const d = await callApi('/youtube/mp3', { url: v.url, quality: '320kbps' });
-  return { buf: d.buf, title: v.title };
+  return { buf: d.buf, title: v.title, v };
 }
-
 async function getVideo(q) {
   const v = await ytFind(q);
   if (v.seconds > 900) throw new Error('වීඩියෝව විනාඩි 15කට වඩා දිගයි');
   const d = await callApi('/youtube/download', { url: v.url, quality: '720p', format: 'mp4' });
-  return { buf: d.buf, title: v.title };
+  return { buf: d.buf, title: v.title, v };
 }
 
-// ---------- Helpers (Enhanced ViewOnce & Media Unwrap) ----------
+// ---------- Message helpers ----------
 function unwrap(x) {
   if (!x) return x;
   if (x.ephemeralMessage?.message) return unwrap(x.ephemeralMessage.message);
@@ -247,30 +228,30 @@ function unwrap(x) {
   if (x.viewOnceMessageV2?.message) return unwrap(x.viewOnceMessageV2.message);
   if (x.viewOnceMessageV2Extension?.message) return unwrap(x.viewOnceMessageV2Extension.message);
   if (x.documentWithCaptionMessage?.message) return unwrap(x.documentWithCaptionMessage.message);
+  if (x.editedMessage?.message) return unwrap(x.editedMessage.message);
   return x;
 }
 
-const textOf = g => g.conversation || g.extendedTextMessage?.text || g.imageMessage?.caption || g.videoMessage?.caption || '';
-const ctxOf = g => Object.values(g).find(v => v && typeof v === 'object' && v.contextInfo)?.contextInfo;
+const textOf = (g) => g.conversation || g.extendedTextMessage?.text || g.imageMessage?.caption || g.videoMessage?.caption || g.documentMessage?.caption || '';
+const ctxOf = (g) => Object.values(g).find((v) => v && typeof v === 'object' && v.contextInfo)?.contextInfo;
+const typeOfMsg = (g) => (g.imageMessage ? 'image' : g.videoMessage ? 'video' : g.audioMessage ? 'audio' : g.stickerMessage ? 'sticker' : null);
+const tsOf = (t) => (typeof t === 'object' && t ? (t.toNumber ? t.toNumber() : Number(t.low)) : Number(t));
 
 function findMedia(m) {
   const g = unwrap(m.message);
   if (!g) return null;
-  const own = g.imageMessage ? 'image' : g.videoMessage ? 'video' : g.audioMessage ? 'audio' : null;
+  const own = typeOfMsg(g);
   if (own) return { type: own, src: m, isQuoted: false };
-  
+
   const c = ctxOf(g);
   const q = unwrap(c?.quotedMessage);
   if (!q) return null;
-  const t = q.imageMessage ? 'image' : q.videoMessage ? 'video' : q.audioMessage ? 'audio' : null;
+  const t = typeOfMsg(q);
   if (!t) return null;
   return {
     type: t,
     isQuoted: true,
-    src: {
-      key: { remoteJid: c.remoteJid || m.key.remoteJid, id: c.stanzaId, participant: c.participant },
-      message: q
-    }
+    src: { key: { remoteJid: c.remoteJid || m.key.remoteJid, id: c.stanzaId, participant: c.participant }, message: q }
   };
 }
 
@@ -278,10 +259,9 @@ const dl = (sock, md) => downloadMediaMessage(md.src, 'buffer', {}, { logger, re
 
 async function sendMediaTo(sock, to, md, caption = '', quoted = undefined) {
   const buf = await dl(sock, md);
-  const c = md.type === 'image'
-    ? { image: buf, caption }
-    : md.type === 'video'
-    ? { video: buf, caption }
+  const c = md.type === 'image' ? { image: buf, caption }
+    : md.type === 'video' ? { video: buf, caption }
+    : md.type === 'sticker' ? { sticker: buf }
     : { audio: buf, mimetype: 'audio/mpeg' };
   return sock.sendMessage(to, c, quoted ? { quoted } : {});
 }
@@ -290,22 +270,27 @@ function sendBuf(sock, jid, buf, kind, title, quoted) {
   if (kind === 'audio') return sock.sendMessage(jid, { audio: buf, mimetype: 'audio/mpeg' }, { quoted });
   const s = buf.subarray(0, 12);
   const img = (s[0] === 0xFF && s[1] === 0xD8) || (s[0] === 0x89 && s[1] === 0x50) || s.toString('ascii', 0, 3) === 'GIF' || s.toString('ascii', 8, 12) === 'WEBP';
-  return sock.sendMessage(jid, img ? { image: buf, caption: title || '' } : { video: buf, mimetype: 'video/mp4', caption: title || '' }, { quoted });
+  if (img) return sock.sendMessage(jid, { image: buf, caption: title || '' }, { quoted });
+  if (buf.length > 60 * 1024 * 1024) return sock.sendMessage(jid, { document: buf, mimetype: 'video/mp4', fileName: `${(title || 'video').slice(0, 60)}.mp4` }, { quoted });
+  return sock.sendMessage(jid, { video: buf, mimetype: 'video/mp4', caption: title || '' }, { quoted });
 }
+
+const registry = createRegistry();
+const ai = createAI({ getS: () => S, apiBase: API_BASE, apiKey: API_KEY, getCmdNames: () => registry.list.map((d) => d.name) });
+const CREATOR_PHOTO = ai.CREATOR_PHOTO;
 
 async function sendCreatorPhoto(sock, jid, caption, quoted) {
   try {
-    const res = await fetch(CREATOR_PHOTO);
+    const res = await fetchT(CREATOR_PHOTO, {}, 20000);
     if (!res.ok) throw new Error('Fetch failed');
-    const pBuf = Buffer.from(await res.arrayBuffer());
-    return await sock.sendMessage(jid, { image: pBuf, caption }, { quoted });
+    return await sock.sendMessage(jid, { image: Buffer.from(await res.arrayBuffer()), caption }, { quoted });
   } catch {
     return await sock.sendMessage(jid, { image: { url: CREATOR_PHOTO }, caption }, { quoted });
   }
 }
 
 const contacts = {};
-let saveT = {};
+const saveT = {};
 function addContact(id, jid) {
   if (!jid?.endsWith('@s.whatsapp.net')) return;
   const set = (contacts[id] ??= new Set());
@@ -315,12 +300,17 @@ function addContact(id, jid) {
   saveT[id] = setTimeout(() => db.collection('contacts').replaceOne({ _id: 's' + id }, { _id: 's' + id, jids: [...set] }, { upsert: true }).catch(() => {}), 5000);
 }
 
-const fmtUp = () => {
-  const s = Math.floor((Date.now() - started) / 1000);
-  return `${Math.floor(s / 3600)}h ${Math.floor(s % 3600 / 60)}m`;
-};
-
 const cooldowns = new Map();
+const slots = Object.fromEntries(SLOT_IDS.map((i) => [i, { status: 'idle' }]));
+
+// ---------- Command kit ----------
+const K = {
+  registry, started, slots, contacts, ai, memGet, memCol, warns, sudoList,
+  callApi, routeLink, getSong, getVideo, sendBuf, sendMediaTo, dl, sendCreatorPhoto, toWebp, toPng,
+  yts: (q) => ytSearch(q), ytFind, groupCfg, saveGroupCfg
+};
+registerCommands(registry.reg, K);
+console.log(`✅ ${registry.list.length} commands loaded`);
 
 // ---------- Status Handler ----------
 async function onStatus(sock, id, m) {
@@ -328,10 +318,10 @@ async function onStatus(sock, id, m) {
   const poster = jidNormalizedUser(m.key.participant || '');
   const me = jidNormalizedUser(sock.user.id);
   addContact(id, poster);
-  
+
   if (S.statusSeen === '1') await sock.readMessages([m.key]).catch(() => {});
   if (S.statusReact === '1') {
-    const em = S.reactEmojis.split(',').map(x => x.trim()).filter(Boolean);
+    const em = S.reactEmojis.split(',').map((x) => x.trim()).filter(Boolean);
     if (em.length && poster) {
       await sock.sendMessage('status@broadcast', {
         react: { text: em[Math.floor(Math.random() * em.length)], key: m.key }
@@ -340,11 +330,45 @@ async function onStatus(sock, id, m) {
   }
   if (S.statusSave === '1') {
     const md = findMedia(m);
-    if (md) await sendMediaTo(sock, me, md, '💾 status: +' + digits(poster.split('@')[0])).catch(() => {});
+    if (md) await sendMediaTo(sock, me, md, '💾 status: +' + userDigits(poster)).catch(() => {});
   }
 }
 
 // ---------- Message Handler ----------
+const botIds = (sock) => new Set([sock.user?.id, sock.user?.lid].filter(Boolean).map(userDigits));
+const idsMatch = (p, set) => [p.id, p.lid, p.phoneNumber, p.jid].filter(Boolean).some((x) => set.has(userDigits(x)));
+
+const friendlyErr = (e) => (e?.name === 'TimeoutError' || e?.name === 'AbortError' ? 'වැඩේට වෙලා වැඩියි ගියා (timeout). ආයෙ try කරන්න.' : e?.message || String(e));
+
+function parsePrefixed(body) {
+  for (const p of prefixes()) {
+    if (!body.startsWith(p)) continue;
+    const mm = body.slice(p.length).trimStart().match(/^(\S+)\s*([\s\S]*)$/);
+    if (!mm) continue;
+    const name = mm[1].toLowerCase();
+    if (registry.map.has(name)) return { def: registry.map.get(name), args: mm[2].trim() };
+  }
+  return null;
+}
+
+async function runCmd(def, c, via) {
+  c.cmd = def;
+  if (def.perm === 'owner' && !c.isOwner) return c.reply('🚫 මේක කරන්න පුළුවන් owner/sudo ට විතරයි.');
+  if (def.group && !c.isGroup) return c.reply('👥 මේක group එකකදී විතරයි.');
+  if (def.perm === 'admin' && !c.isOwner && !(await c.isAdmin())) return c.reply('🚫 මේක group admin ලාට විතරයි.');
+  if (def.ack) {
+    if (via === 'ai') { if (c.say) await c.reply(c.say); } else c.react('⏳');
+  }
+  try {
+    await def.run(c);
+    if (def.ack && via !== 'ai') c.react('✅');
+  } catch (e) {
+    console.error(`cmd ${def.name}:`, e?.message || e);
+    c.react('❌');
+    await c.reply('❌ ' + friendlyErr(e)).catch(() => {});
+  }
+}
+
 async function onMessage(sock, id, m) {
   const jid = m.key.remoteJid;
   const g = unwrap(m.message);
@@ -353,239 +377,186 @@ async function onMessage(sock, id, m) {
   if (!text) return;
 
   const me = jidNormalizedUser(sock.user.id);
+  const isGroup = jid.endsWith('@g.us');
   const rawSender = jidNormalizedUser(m.key.participant || jid);
-  const sender = digits(rawSender.split('@')[0]);
-  const isOwner = m.key.fromMe || sudoList().includes(sender);
+  const senderJids = [rawSender, m.key.participantAlt, m.key.remoteJidAlt].filter(Boolean);
+  const senderIds = new Set(senderJids.map(userDigits));
+  const sender = userDigits(senderJids.find((x) => x.endsWith('@s.whatsapp.net')) || rawSender);
+  const isOwner = m.key.fromMe || sudoList().some((n) => senderIds.has(n));
+  const bots = botIds(sock);
   const ctx = ctxOf(g);
   const md = findMedia(m);
-  const reply = t => sock.sendMessage(jid, { text: t }, { quoted: m });
 
-  // Owner status reply save
+  if (!isOwner && bannedList().some((n) => senderIds.has(n))) return;
+  if (S.mode === 'private' && !isOwner) return;
+
+  const qMsg = unwrap(ctx?.quotedMessage);
+  const rawMentions = ctx?.mentionedJid || [];
+  const mentioned = rawMentions.filter((j) => !bots.has(userDigits(j)));
+  const qParticipant = ctx?.participant ? jidNormalizedUser(ctx.participant) : null;
+
+  // ---- command context ----
+  const c = {
+    sock, m, jid, id, me, sender, rawSender, isOwner, isGroup, md, ctx, mentioned, qParticipant,
+    qText: qMsg ? textOf(qMsg) : '',
+    qFromMe: !!qParticipant && bots.has(userDigits(qParticipant)),
+    args: '', argv: [], say: '', S, db, p: prefixes()[0] || '.',
+    saveSettings,
+    reply: (t) => sock.sendMessage(jid, { text: t }, { quoted: m }),
+    send: (content, opts = {}) => sock.sendMessage(jid, content, opts),
+    react: (e) => sock.sendMessage(jid, { react: { text: e, key: m.key } }).catch(() => {}),
+    meta: () => getMeta(sock, jid),
+    isAdmin: async () => (await getMeta(sock, jid)).participants.some((p) => p.admin && idsMatch(p, senderIds)),
+    botIsAdmin: async () => (await getMeta(sock, jid, true)).participants.some((p) => p.admin && idsMatch(p, bots)),
+    target: async (selfDefault) => {
+      if (mentioned[0]) return mentioned[0];
+      if (qParticipant) return qParticipant;
+      const tok = c.argv.find((a) => digits(a).length >= 9);
+      if (tok) return normNum(tok) + '@s.whatsapp.net';
+      return selfDefault ? rawSender : null;
+    }
+  };
+  c.done = (def) => c.reply(c.say || def);
+  const setArgs = (a) => { c.args = a; c.argv = a.split(/\s+/).filter(Boolean); };
+
+  // ---- Group: anti-link ----
+  if (isGroup && !m.key.fromMe && /chat\.whatsapp\.com\/[A-Za-z0-9]{10,}/i.test(text) && !isOwner) {
+    const gc = await groupCfg(jid);
+    if (gc.antilink && gc.antilink !== 'off' && (await c.botIsAdmin().catch(() => false)) && !(await c.isAdmin().catch(() => false))) {
+      await sock.sendMessage(jid, { delete: m.key }).catch(() => {});
+      await sock.sendMessage(jid, { text: `🚫 @${userDigits(rawSender)} group links දාන්න එපා!`, mentions: [rawSender] });
+      if (gc.antilink === 'kick') await sock.groupParticipantsUpdate(jid, [rawSender], 'remove').catch(() => {});
+      return;
+    }
+  }
+
+  // ---- Owner status reply save ----
   if (isOwner && ctx?.remoteJid === 'status@broadcast' && md && /send|save|denna|dapan|ewanna|ewnna|evanna|එවන්න|දෙන්න|දාපන්|සේව්/i.test(text)) {
     return void await sendMediaTo(sock, me, md, '💾 saved status');
   }
 
-  // Trigger check
-  const hit = nameList().filter(n => nameRe(n).test(text));
-  if (!hit.length) return;
+  // ---- 1. Prefix commands (no name needed) ----
+  const px = parsePrefixed(text.trim());
+  const hit = nameList().filter((n) => nameRe(n).test(text));
+  const mentionedMe = rawMentions.some((j) => bots.has(userDigits(j)));
+  const quotedBot = !m.key.fromMe && !!ctx?.quotedMessage && c.qFromMe;
+  const addressed = hit.length > 0 || mentionedMe || (S.replyToBot === '1' && quotedBot) || (S.dmAlways === '1' && !isGroup && !m.key.fromMe);
+
+  if (!px && !addressed) return;
 
   if (!isOwner) {
     const last = cooldowns.get(sender) || 0;
     if (Date.now() - last < 2000) return;
     cooldowns.set(sender, Date.now());
+    if (cooldowns.size > 2000) cooldowns.clear();
   }
 
-  let clean = text;
-  hit.forEach(n => { clean = clean.replace(new RegExp(esc(n), 'gi'), ''); });
-  clean = clean.replace(/^[\s,.:!?]+/, '').trim() || 'hi';
-
   if (S.autoTyping === '1') sock.sendPresenceUpdate('composing', jid).catch(() => {});
-  const ownerOnly = () => {
-    if (isOwner) return false;
-    reply('🚫 මේක කරන්න පුළුවන් owner/sudo ට විතරයි.');
-    return true;
-  };
-
   try {
-    // 1. Direct JID / LID Command
-    if (/\b(jid|lid)\b/i.test(clean)) {
-      const targetUser = ctx?.participant ? jidNormalizedUser(ctx.participant) : rawSender;
-      const rawParticipant = ctx?.participant || m.key.participant || jid;
-      let info = `🆔 *JID / LID Details*\n\n`;
-      info += `• *Chat JID:* \`${jid}\`\n`;
-      info += `• *User JID:* \`${targetUser}\`\n`;
-      if (rawParticipant.includes('@lid') || (m.key.participantAlt)) {
-        info += `• *User LID:* \`${rawParticipant.includes('@lid') ? rawParticipant : m.key.participantAlt}\`\n`;
-      }
-      return void await reply(info.trim());
+    if (px) {
+      setArgs(px.args);
+      return void await runCmd(px.def, c, 'prefix');
     }
 
-    // 2. Direct Sudo Add/Change Command (Owner Only)
-    if (/\bsudo\b/i.test(clean) && /(add|set|change|danna|දාන්න|කරන්න|වෙනස්)/i.test(clean)) {
-      if (ownerOnly()) return;
-      const numMatch = clean.match(/(?:\+?\d[\d\s-]{7,15}\d)/);
-      if (!numMatch) return void await reply('📞 Sudo එකට දාන්න ඕන අංකයත් එක්ක කියන්න. (උදා: නෙතු sudo එකට 0771234567 දාන්න)');
-      let newNum = digits(numMatch[0]);
-      if (newNum.startsWith('0') && newNum.length === 10) newNum = '94' + newNum.slice(1);
-      
-      const currentSudos = sudoList();
-      if (!currentSudos.includes(newNum)) {
-        S.sudo = S.sudo ? `${S.sudo},${newNum}` : newNum;
-        await saveSettings();
-      }
-      return void await reply(`✅ හරි බබා! *+${newNum}* Sudo list එකට add කළා. දැන් එයාටත් මාව control කරන්න පුළුවන් 🥰`);
+    // ---- 2. Natural language ----
+    let clean = text;
+    hit.forEach((n) => { clean = clean.replace(new RegExp(esc(n), 'gi'), ''); });
+    bots.forEach((d) => { clean = clean.replace(new RegExp('@' + d, 'g'), ''); });
+    clean = clean.replace(/^[\s,.:!?]+/, '').trim() || 'hi';
+
+    // 2a. "නෙතු menu" / "nethu ping" — first word is a fast command
+    const [fw, ...restW] = clean.split(/\s+/);
+    const fd = registry.map.get(fw.toLowerCase().replace(/^[^\p{L}\p{N}]+/u, ''));
+    if (fd?.fast) {
+      setArgs(restW.join(' '));
+      return void await runCmd(fd, c, 'prefix');
     }
 
-    // 3. Direct ViewOnce Recovery Command
-    if (md?.isQuoted && /(viewonce|view once|ආයෙ|ආයේ|open|බලන්න|save|එවන්න|දෙන්න)/i.test(clean) && !/(status|ස්ටේටස්)/i.test(clean)) {
-      if (ownerOnly()) return;
-      await sendMediaTo(sock, jid, md, '👀 මෙන්න ඒක ආයෙමත් 🥰', m);
-      return;
+    // 2b. offline intent detection (Sinhala / Singlish / English)
+    const ig = intentOf(clean, { md, isGroup });
+    if (ig && registry.map.has(ig.cmd)) {
+      setArgs(ig.args);
+      return void await runCmd(registry.map.get(ig.cmd), c, 'prefix');
     }
 
-    // 4. Direct Creator / Bot Photo Trigger
-    if (/(photo|pic|image|dp|පොටෝ|ෆොටෝ|පින්තූර|රූප)/i.test(clean) && /(dinidu|heshan|creator|owner|ඔයාගේ|ඔයාගෙ|දිනිදු|හේෂාන්|හදපු)/i.test(clean)) {
-      return void await sendCreatorPhoto(sock, jid, 'මේ ඉන්නේ මාව හදපු මගේ අයියා (දිනිදු හේෂාන්) 🥰❤️', m);
-    }
-
-    // 5. Direct Link Downloader
+    // 2c. direct link downloader
     const um = clean.match(/https?:\/\/\S+/);
     if (um) {
       const r = routeLink(um[0], clean);
       if (r) {
-        await reply('⏳ download කරනවා...');
+        await c.reply('⏳ download කරනවා...');
         const d = await callApi(r.path, r.params);
         return void await sendBuf(sock, jid, d.buf, r.kind, d.title, m);
       }
     }
 
-    // 6. AI Processing
+    // 2d. AI understands everything else
     let imgBuf = null;
-    if (S.provider === 'gemini' && md?.type === 'image') {
-      imgBuf = await dl(sock, md).catch(() => null);
-    }
+    if (S.geminiKey && md?.type === 'image') imgBuf = await dl(sock, md).catch(() => null);
 
     const mem = await memGet(sender);
-    const a = await ai(clean, !!md, mem, imgBuf);
-    const say = a.reply || '🙂';
+    let a;
+    try {
+      a = await ai.decide(clean, !!md, mem, imgBuf);
+    } catch (e) {
+      const fb = intentOf(clean, { md, isGroup, relaxed: true });
+      if (fb && registry.map.has(fb.cmd)) {
+        setArgs(fb.args);
+        return void await runCmd(registry.map.get(fb.cmd), c, 'prefix');
+      }
+      return void await c.reply('⚠️ AI error: ' + friendlyErr(e));
+    }
 
-    switch (a.action) {
-      case 'song': {
-        await reply(say);
-        const s = await getSong(a.query || clean);
-        await sendBuf(sock, jid, s.buf, 'audio', '', m);
-        await sock.sendMessage(jid, { text: `🎶 ${s.title}` });
-        break;
-      }
-      case 'video': {
-        await reply(say);
-        const s = await getVideo(a.query || clean);
-        await sendBuf(sock, jid, s.buf, 'video', s.title, m);
-        break;
-      }
-      case 'sticker': {
-        if (md?.type !== 'image') return void await reply('🖼️ ස්ටිකර් එකක් හදන්න රූපයක් එක්ක (හෝ රූපයකට reply කරලා) කියන්න.');
-        const buf = imgBuf || await dl(sock, md);
-        await sock.sendMessage(jid, { sticker: buf }, { quoted: m });
-        break;
-      }
-      case 'viewonce': {
-        if (ownerOnly()) return;
-        if (!md) return void await reply('👀 ආයෙ බලන්න ඕන photo හෝ video එකට reply කරලා කියන්න.');
-        await sendMediaTo(sock, jid, md, say, m);
-        break;
-      }
-      case 'set_sudo': {
-        if (ownerOnly()) return;
-        let newNum = digits(a.value || a.query);
-        if (newNum.startsWith('0') && newNum.length === 10) newNum = '94' + newNum.slice(1);
-        if (!newNum || newNum.length < 9) return void await reply('📞 නිවැරදි දුරකථන අංකයක් දෙන්න.');
-        if (!sudoList().includes(newNum)) {
-          S.sudo = S.sudo ? `${S.sudo},${newNum}` : newNum;
-          await saveSettings();
-        }
-        await reply(`${say}\n✅ (+${newNum} Sudo ලෙස එකතු කළා)`);
-        break;
-      }
-      case 'get_jid': {
-        const targetUser = ctx?.participant ? jidNormalizedUser(ctx.participant) : rawSender;
-        const rawParticipant = ctx?.participant || m.key.participant || jid;
-        let info = `🆔 *JID / LID Details*\n\n• *Chat JID:* \`${jid}\`\n• *User JID:* \`${targetUser}\``;
-        if (rawParticipant.includes('@lid')) info += `\n• *User LID:* \`${rawParticipant}\``;
-        await reply(info);
-        break;
-      }
-      case 'set_name':
-        if (ownerOnly()) return;
-        await sock.updateProfileName(a.value);
-        await reply(say);
-        break;
-      case 'set_bio':
-        if (ownerOnly()) return;
-        await sock.updateProfileStatus(a.value);
-        await reply(say);
-        break;
-      case 'set_dp':
-        if (ownerOnly()) return;
-        if (md?.type !== 'image') return void await reply('📸 රූපයක් එක්ක (හෝ රූපයකට reply කරලා) කියන්න.');
-        await sock.updateProfilePicture(me, imgBuf || await dl(sock, md));
-        await reply(say);
-        break;
-      case 'get_dp': {
-        let n = digits(a.value || a.query);
-        if (n.startsWith('0')) n = '94' + n.slice(1);
-        if (!n) return void await reply('📞 අංකය දෙන්න.');
-        const url = await sock.profilePictureUrl(n + '@s.whatsapp.net', 'image').catch(() => null);
-        if (!url) return void await reply('😕 dp එක ගන්න බැරි උනා (නැත්නම් hide කරලා).');
-        await sock.sendMessage(jid, { image: { url }, caption: say + ' +' + n }, { quoted: m });
-        break;
-      }
-      case 'post_status': {
-        if (ownerOnly()) return;
-        const opts = { statusJidList: [...(contacts[id] || []), me], backgroundColor: '#315575', font: 3 };
-        if (md && md.type !== 'audio') {
-          const buf = imgBuf || await dl(sock, md);
-          await sock.sendMessage('status@broadcast', md.type === 'image' ? { image: buf, caption: a.value || '' } : { video: buf, caption: a.value || '' }, opts);
-        } else {
-          await sock.sendMessage('status@broadcast', { text: a.value || clean }, opts);
-        }
-        await reply(say);
-        break;
-      }
-      case 'save_status':
-        if (ownerOnly()) return;
-        if (!md) return void await reply('📎 save කරන්න ඕන status/රූපයට reply කරන්න.');
-        await sendMediaTo(sock, me, md, '💾 saved');
-        await reply(say);
-        break;
-      case 'send_photo':
-        await sendCreatorPhoto(sock, jid, say, m);
-        break;
-      case 'tagall': {
-        if (ownerOnly()) return;
-        if (!jid.endsWith('@g.us')) return void await reply('👥 මේක group එකකදී විතරයි.');
-        const gm = await sock.groupMetadata(jid);
-        await sock.sendMessage(jid, {
-          text: `📢 ${a.value || say}\n\n` + gm.participants.map(p => '@' + p.id.split('@')[0]).join(' '),
-          mentions: gm.participants.map(p => p.id)
-        }, { quoted: m });
-        break;
-      }
-      case 'alive':
-        await reply(`✅ ${S.botName} online!\n⏱️ Uptime: ${fmtUp()}\n🤖 AI: ${S.provider.toUpperCase()}`);
-        break;
-      default:
-        await reply(say);
+    const say = a.reply || '🙂';
+    const def = a.cmd && a.cmd !== 'chat' ? registry.map.get(a.cmd) : null;
+    if (def) {
+      const needsText = ['song', 'video', 'tts', 'imagine', 'weather', 'wiki', 'define', 'translate', 'ai'].includes(def.name);
+      setArgs(a.args || (needsText ? stripWords(clean) || clean : ''));
+      c.say = say;
+      await runCmd(def, c, 'ai');
+    } else {
+      await c.reply(say);
     }
 
     if (a.remember && typeof a.remember === 'object') {
-      for (const [k, v] of Object.entries(a.remember)) {
-        if (v) mem.facts[k] = String(v).slice(0, 100);
-      }
+      for (const [k, v] of Object.entries(a.remember)) if (v) mem.facts[k] = String(v).slice(0, 100);
     }
     mem.hist = [...(mem.hist || []), { u: clean, a: say }].slice(-8);
     await memSave(mem);
-
   } catch (e) {
     console.error(e);
-    reply('❌ ' + e.message).catch(() => {});
+    c.reply('❌ ' + friendlyErr(e)).catch(() => {});
   } finally {
     if (S.autoTyping === '1') sock.sendPresenceUpdate('paused', jid).catch(() => {});
   }
 }
 
+const sentIds = new Set();
+
 function attach(sock, id) {
-  sock.ev.on('contacts.upsert', cs => cs.forEach(c => addContact(id, c.id)));
+  // remember ids of everything the bot itself sends, so it can never reply to itself
+  const origSend = sock.sendMessage.bind(sock);
+  sock.sendMessage = async (...args) => {
+    const r = await origSend(...args);
+    if (r?.key?.id) {
+      sentIds.add(r.key.id);
+      if (sentIds.size > 1000) sentIds.delete(sentIds.values().next().value);
+    }
+    return r;
+  };
+
+  sock.ev.on('contacts.upsert', (cs) => cs.forEach((c) => addContact(id, c.id)));
+
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
     if (type !== 'notify') return;
     for (const m of messages) {
       if (!m?.message) continue;
       const jid = m.key.remoteJid;
       try {
-        if (jid === 'status@broadcast') {
-          await onStatus(sock, id, m);
-          continue;
-        }
+        if (jid === 'status@broadcast') { await onStatus(sock, id, m); continue; }
+        if (sentIds.has(m.key.id)) continue;
+        const ts = tsOf(m.messageTimestamp);
+        if (ts && Date.now() / 1000 - ts > 600) continue; // ignore very old backlog messages
         addContact(id, jid);
         if (S.autoRead === '1' && !m.key.fromMe) sock.readMessages([m.key]).catch(() => {});
         await onMessage(sock, id, m);
@@ -594,24 +565,52 @@ function attach(sock, id) {
       }
     }
   });
+
+  sock.ev.on('group-participants.update', async (ev) => {
+    try {
+      const gc = await groupCfg(ev.id);
+      if (gc.welcome !== 'on') return;
+      const bots = botIds(sock);
+      const list = (ev.participants || []).map((p) => (typeof p === 'string' ? p : p.id)).filter((p) => p && !bots.has(userDigits(p)));
+      if (!list.length) return;
+      const gm = await getMeta(sock, ev.id, true).catch(() => null);
+      const tag = list.map((p) => '@' + userDigits(p)).join(' ');
+      if (ev.action === 'add') await sock.sendMessage(ev.id, { text: `👋 ආයුබෝවන් ${tag}!\n*${gm?.subject || 'group'}* එකට සාදරයෙන් පිළිගන්නවා 🥰`, mentions: list });
+      else if (ev.action === 'remove') await sock.sendMessage(ev.id, { text: `😢 ${tag} group එකෙන් ගියා. bye bye 👋`, mentions: list });
+    } catch (e) { console.error(e?.message || e); }
+  });
+
+  sock.ev.on('call', async (calls) => {
+    if (S.antiCall !== '1') return;
+    for (const cl of calls || []) {
+      if (cl.status !== 'offer') continue;
+      await sock.rejectCall(cl.id, cl.from).catch(() => {});
+      await sock.sendMessage(cl.from, { text: '📵 Call answer කරන්නෙ නෑ බබා, message එකක් දාන්න 🥰' }).catch(() => {});
+    }
+  });
 }
 
 // ---------- Slots ----------
-const slots = Object.fromEntries(SLOT_IDS.map(i => [i, { status: 'idle' }]));
 const authCol = db.collection('auth');
-const wipe = id => authCol.deleteMany({ _id: { $regex: `^s${id}:` } });
+const wipe = (id) => authCol.deleteMany({ _id: { $regex: `^s${id}:` } });
 
 async function startSlot(id, number) {
   const s = slots[id];
-  if (s.sock) { s.manual = true; try { s.sock.end(); } catch {} }
+  if (s.sock) {
+    s.manual = true;
+    try { s.sock.ev.removeAllListeners('messages.upsert'); } catch {}
+    try { s.sock.end(); } catch {}
+  }
   s.manual = false; s.status = 'connecting'; s.code = null; s.error = null;
   contacts[id] = new Set((await db.collection('contacts').findOne({ _id: 's' + id }))?.jids || []);
-  
+
   const { state, saveCreds } = await useMongoAuth(authCol, 's' + id);
   const { version } = await fetchLatestBaileysVersion();
   const sock = makeWASocket({
     version, auth: state, logger, browser: Browsers.ubuntu('Chrome'),
-    printQRInTerminal: false, markOnlineOnConnect: S.alwaysOnline === '1', syncFullHistory: false
+    printQRInTerminal: false, markOnlineOnConnect: S.alwaysOnline === '1', syncFullHistory: false,
+    keepAliveIntervalMs: 25000, connectTimeoutMs: 60000, generateHighQualityLinkPreview: false,
+    getMessage: async () => undefined
   });
   s.sock = sock;
   sock.ev.on('creds.update', saveCreds);
@@ -620,8 +619,8 @@ async function startSlot(id, number) {
   if (!state.creds.registered && number) {
     setTimeout(async () => {
       try {
-        const c = await sock.requestPairingCode(digits(number));
-        s.code = c.match(/.{1,4}/g).join('-');
+        const code = await sock.requestPairingCode(digits(number));
+        s.code = code.match(/.{1,4}/g).join('-');
         s.status = 'code';
       } catch (e) {
         s.status = 'idle';
@@ -635,25 +634,34 @@ async function startSlot(id, number) {
     if (connection === 'open') {
       s.status = 'open';
       s.code = null;
+      s.retries = 0;
       s.number = sock.user.id.split(':')[0].split('@')[0];
       console.log(`✅ Device ${id} connected`);
       if (S.alwaysOnline === '1') sock.sendPresenceUpdate('available').catch(() => {});
     }
     if (connection === 'close') {
-      const c = lastDisconnect?.error?.output?.statusCode;
-      if (c === DisconnectReason.loggedOut) {
+      const code = lastDisconnect?.error?.output?.statusCode;
+      if (code === DisconnectReason.loggedOut) {
         await wipe(id);
         Object.assign(s, { status: 'idle', number: null, sock: null });
         return;
       }
       if (s.manual) return;
+      if (code === DisconnectReason.connectionReplaced) {
+        s.status = 'idle';
+        s.sock = null;
+        s.error = 'වෙන තැනක (වෙන server එකක) මේ session එකම run වෙනවා. එකක් නවත්තලා restart කරන්න.';
+        return;
+      }
       if (!sock.authState.creds.registered) {
         s.status = 'idle';
         s.sock = null;
         return;
       }
       s.status = 'connecting';
-      setTimeout(() => startSlot(id), 3000);
+      s.retries = (s.retries || 0) + 1;
+      const delay = code === DisconnectReason.restartRequired ? 500 : Math.min(30000, 2000 * s.retries);
+      setTimeout(() => startSlot(id).catch((e) => { console.error(e?.message); s.status = 'idle'; }), delay);
     }
   });
 }
@@ -665,9 +673,11 @@ for (const id of SLOT_IDS) {
 // ---------- Web Server ----------
 const app = express();
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 
-const auth = (q, r, n) => q.headers['x-admin'] === ADMIN_PASSWORD ? n() : r.status(401).json({ error: 'වැරදි password' });
+const auth = (q, r, n) => (q.headers['x-admin'] === ADMIN_PASSWORD ? n() : r.status(401).json({ error: 'වැරදි password' }));
+
+app.get('/health', (q, r) => r.json({ ok: true, uptime: fmtUp(Date.now() - started), commands: registry.list.length }));
 
 app.get('/api/status', (q, r) => r.json({
   botName: S.botName, logo: S.logo,
@@ -676,15 +686,14 @@ app.get('/api/status', (q, r) => r.json({
 
 app.post('/api/pair', (q, r) => {
   const { slot } = q.body;
-  let n = digits(q.body.number);
-  if (n.length === 10 && n[0] === '0') n = '94' + n.slice(1);
+  const n = normNum(q.body.number);
   if (!SLOT_IDS.includes(+slot) || n.length < 9) return r.status(400).json({ error: 'අංකය වැරදියි (94712345678)' });
   if (slots[slot].status === 'open') return r.status(400).json({ error: 'දැනටමත් connect වෙලා' });
-  startSlot(+slot, n).catch(e => { slots[slot].error = e.message; slots[slot].status = 'idle'; });
+  startSlot(+slot, n).catch((e) => { slots[slot].error = e.message; slots[slot].status = 'idle'; });
   r.json({ ok: true });
 });
 
-app.post('/api/logout', async (q, r) => {
+app.post('/api/logout', auth, async (q, r) => {
   const id = +q.body.slot;
   const s = slots[id];
   if (!s) return r.status(400).end();
@@ -702,9 +711,14 @@ app.post('/api/settings', auth, async (q, r) => {
   for (const k of Object.keys(DEF)) if (typeof b[k] === 'string') S[k] = b[k].trim();
   await saveSettings();
   const ch = b.mongoUrl && b.mongoUrl.trim() !== MONGO_URL;
-  if (ch) fs.writeFileSync('./config.json', JSON.stringify({ mongoUrl: b.mongoUrl.trim() }));
+  if (ch) fs.writeFileSync(path.join(__dirname, 'config.json'), JSON.stringify({ mongoUrl: b.mongoUrl.trim() }));
   r.json({ ok: true, restart: !!ch });
   if (ch) setTimeout(() => process.exit(0), 800);
 });
 
 app.listen(PORT, () => console.log('🌐 http://localhost:' + PORT));
+
+// keep Render free instance awake
+if (process.env.RENDER_EXTERNAL_URL) {
+  setInterval(() => fetchT(process.env.RENDER_EXTERNAL_URL + '/health', {}, 15000).catch(() => {}), 4 * 60 * 1000);
+}
