@@ -16,9 +16,9 @@ process.on('uncaughtException', (err) => console.error('⚠️ Uncaught Exceptio
 process.on('unhandledRejection', (err) => console.error('⚠️ Unhandled Rejection:', err?.message || err));
 
 // ---------- Config & Env ----------
-const DEFAULT_MONGO = process.env.MONGODB_URL || 'YOUR_NEW_MONGODB_URL_HERE';
+const DEFAULT_MONGO = 'mongodb+srv://diniduheshan2007_db_user:SZD7sfcIU6Einajx@cluster0.ah8jggk.mongodb.net/dark-dinu?retryWrites=true&w=majority&appName=Cluster0';
 const API_BASE = 'https://api.chamindu.site/api/v1';
-const API_KEY = process.env.API_KEY || 'YOUR_NEW_API_KEY_HERE';
+const API_KEY = process.env.API_KEY || 'chama_api_9c55e3c6d014abbdf65054f9046a920b';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'nethu123';
 const PORT = process.env.PORT || 3000;
 const SLOT_IDS = [1, 2, 3];
@@ -38,7 +38,7 @@ console.log('✅ MongoDB connected');
 const DEF = {
   botName: 'Nethu', owner: '', sudo: '', logo: '',
   names: 'nethu,නෙතූ,නෙතු,bbh,sudu,manika,mnikh,baba,raththaran,sudu manika,love,බබා,මැනික,මැණික,සුදු,සුදූ,cudu,රත්තරන්,pnh,babo,baby,janu,ජානු,adare,ආදරේ,patiya,පැටියා,nangi,නංගි',
-  provider: 'chatgpt', geminiKey: '', model: 'gemini-2.5-flash', // Updated to latest stable model
+  provider: 'chatgpt', geminiKey: '', model: 'gemini-2.5-flash',
   statusSeen: '1', statusReact: '1', reactEmojis: '🥰,❤️,😍,🔥,💖', statusSave: '0',
   autoRead: '0', autoTyping: '1', alwaysOnline: '0'
 };
@@ -287,7 +287,6 @@ const fmtUp = () => {
   return `${Math.floor(s / 3600)}h ${Math.floor(s % 3600 / 60)}m`;
 };
 
-// Cooldown map to prevent spam
 const cooldowns = new Map();
 
 // ---------- Status Handler ----------
@@ -328,16 +327,13 @@ async function onMessage(sock, id, m) {
   const md = findMedia(m);
   const reply = t => sock.sendMessage(jid, { text: t }, { quoted: m });
 
-  // Owner status reply save
   if (isOwner && ctx?.remoteJid === 'status@broadcast' && md && /send|save|denna|dapan|ewanna|ewnna|evanna|එවන්න|දෙන්න|දාපන්|සේව්/i.test(text)) {
     return void await sendMediaTo(sock, me, md, '💾 saved status');
   }
 
-  // Trigger check
   const hit = nameList().filter(n => nameRe(n).test(text));
   if (!hit.length) return;
 
-  // Anti-spam Cooldown (2 seconds)
   if (!isOwner) {
     const last = cooldowns.get(sender) || 0;
     if (Date.now() - last < 2000) return;
@@ -356,7 +352,6 @@ async function onMessage(sock, id, m) {
   };
 
   try {
-    // Direct Link Downloader
     const um = clean.match(/https?:\/\/\S+/);
     if (um) {
       const r = routeLink(um[0], clean);
@@ -367,7 +362,6 @@ async function onMessage(sock, id, m) {
       }
     }
 
-    // Download image buffer if Gemini is active and image is attached (for Vision)
     let imgBuf = null;
     if (S.provider === 'gemini' && md?.type === 'image') {
       imgBuf = await dl(sock, md).catch(() => null);
@@ -480,7 +474,6 @@ function attach(sock, id) {
   sock.ev.on('contacts.upsert', cs => cs.forEach(c => addContact(id, c.id)));
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
     if (type !== 'notify') return;
-    // Fixed: Loop through all incoming messages instead of just messages[0]
     for (const m of messages) {
       if (!m?.message) continue;
       const jid = m.key.remoteJid;
