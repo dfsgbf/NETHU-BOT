@@ -56,15 +56,15 @@ async function load(){const d=await api('/api/status');$('#title').textContent=d
  if(d.logo&&!$('#logo img'))$('#logo').innerHTML=`<img src="${d.logo}" onerror="this.remove()">`;
  const w=$('#slots');for(const[i,s]of Object.entries(d.slots)){const k=JSON.stringify(s);if(sig[i]===k)continue;sig[i]=k;let e=$('#c'+i);if(!e){e=document.createElement('div');e.id='c'+i;w.appendChild(e)}e.innerHTML=card(i,s)}}
 async function pair(i){const n=$('#n'+i).value;const r=await api('/api/pair',{slot:i,number:n});if(r.error)toast(r.error);sig[i]=0;load()}
-async function out(i){if(confirm('Logout කරන්නද?')){await api('/api/logout',{slot:i});sig[i]=0;load()}}
+async function out(i){if(!confirm('Logout කරන්නද?'))return;const pw=adm||prompt('Admin password');if(!pw)return;const r=await api('/api/logout',{slot:i},{'x-admin':pw});if(r.error)return toast(r.error);adm=pw;sig[i]=0;load()}
 function cp(c){navigator.clipboard?.writeText(c.replace(/-/g,''));toast('Copied ✅')}
 const SEC=[['🤖 Bot',[['botName','Bot නම'],['owner','Owner number (94...)'],['sudo','Sudo numbers (කොමාවෙන්)'],['logo','Logo URL'],['names','AI එකට කතා කරන නම් (කොමාවෙන් වෙන් කරන්න)','area']]],
 ['👁️ Status',[['statusSeen','Status auto seen','b'],['statusReact','Status auto react','b'],['reactEmojis','React emojis (කොමාවෙන්)'],['statusSave','Status auto save (owner chat එකට)','b']]],
-['⚙️ General',[['autoRead','Auto read messages','b'],['autoTyping','Typing පෙන්නන්න','b'],['alwaysOnline','Always online','b']]],
+['⚙️ General',[['autoRead','Auto read messages','b'],['autoTyping','Typing පෙන්නන්න','b'],['alwaysOnline','Always online','b'],['antiCall','Calls auto reject','b'],['dmAlways','DM එකේ නමක් නැතුවත් reply','b'],['replyToBot','Bot ගේ message එකට reply කළාම respond','b'],['prefix','Command prefix (කොමාවෙන් කීපයක් පුළුවන්: . , !)'],['mode','Mode (public / private)'],['banned','Ban කළ numbers (කොමාවෙන්)']]],
 ['🧠 AI',[['provider','Provider (chatgpt / gemini)'],['geminiKey','Gemini API key (විකල්ප)'],['model','Gemini model']]],
 ['🗄️ Database',[['mongoUrl','MongoDB URL (වෙනස් කළොත් restart වෙයි)']]]];
 const q=v=>String(v||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
-async function unlock(){adm=$('#pw').value;const d=await api('/api/settings',null,{'x-admin':adm});if(d.error)return toast(d.error);
+async function unlock(){const pw=$('#pw').value;const d=await api('/api/settings',null,{'x-admin':pw});if(d.error)return toast(d.error);adm=pw;
  $('#lock').style.display='none';const f=$('#form');f.style.display='block';
  f.innerHTML=SEC.map(([t,fs])=>`<div class="sec">${t}</div>`+fs.map(([k,l,ty])=>ty==='b'?`<div class="tg">${l}<input type="checkbox" id="f_${k}" ${d[k]==='1'?'checked':''}></div>`:
  ty==='area'?`<label>${l}</label><textarea id="f_${k}">${q(d[k])}</textarea>`:`<label>${l}</label><input id="f_${k}" value="${q(d[k])}">`).join('')).join('')+`<button class="btn" onclick="save()" style="margin-top:12px">💾 Save</button>`}
