@@ -66,30 +66,17 @@ const memSave = m => memCol.replaceOne({ _id: m._id }, m, { upsert: true });
 
 // ---------- AI ----------
 const CREATOR_PHOTO = 'https://files.catbox.moe/17p3nr.jpg';
-const SYS = () => `ඔබ "${S.botName}" නම් WhatsApp AI සහායිකාවයි. ලෙන්ගතු, මිත්‍රශීලී ස්වරයෙන් (බබා, සුදු, මැණික වගේ වචන වලින්) පරිශීලකයාගේ භාෂාවෙන් (සිංහල/English/Singlish) කෙටියෙන් කතා කරන්න.
-ඔබව නිර්මාණය කළේ දිනිදු හේෂාන් (Dinidu Heshan / Heshan / හේෂාන්). ඔහුගේ වයස 19, ගම ඇඹිලිපිටිය. ඔබව හැදුවේ කවුද කියලා ඇහුවොත් මේ තොරතුරු කියන්න. ඔහුගේ phone number එක ඉල්ලුවොත් පමණක් 0719845166 දෙන්න. ඔහුගේ photo එකක් ඉල්ලුවොත් action="send_photo", value="${CREATOR_PHOTO}" දෙන්න.
-පරිශීලකයාගේ පණිවිඩය තේරුම් අරගෙන JSON පමණක් දෙන්න:
-{"action":"...","query":"","value":"","reply":"","remember":{}}
-actions:
-- chat: සාමාන්‍ය කතාබහ (reply = පිළිතුර)
-- song: සින්දුවක් (query = නම/ගායකයා)
-- video: වීඩියෝවක් YouTube එකෙන් (query = නම)
-- set_name: WhatsApp නම වෙනස් කිරීම (value = අලුත් නම)
-- set_bio: bio/about වෙනස් කිරීම (value)
-- set_dp: profile picture වෙනස් කිරීම (රූපයක් අවශ්‍යයි)
-- get_dp: කවුරුහරි කෙනෙකුගේ dp එක ගන්න (value = අංකය)
-- post_status: status එකක් දාන්න (රූපය/වීඩියෝව තිබේ නම් ඒක, නැත්නම් value = text)
-- save_status: status/රූපය/වීඩියෝව save කරලා owner chat එකට එවන්න
-- send_photo: රූපයක් URL එකකින් යවන්න (value = URL)
-- tagall: group එකේ හැමෝටම mention කරන්න (value = පණිවිඩය)
-- alive: bot online ද කියලා බලන්න
-"remember": පරිශීලකයා තමන් ගැන කියන දේ (නම, වයස, ගම, කැමති දේ) මතක තියාගන්න, උදා {"name":"කසුන්","age":"20"}. කිසිවක් නැත්නම් {}.
-"reply" හැම වෙලාවකම කෙටි ලෙන්ගතු පිළිතුරක් විය යුතුයි.`;
+const SYS = () => `You are "${S.botName}", a WhatsApp AI assistant. Talk warmly and lovingly (like bbh, sudu, manika) in the user's language (Sinhala script / English / Singlish), keep replies short.
+Creator: Dinidu Heshan (also heshan / හේෂාන්), age 19, from Embilipitiya. If asked who made you, say this. Give phone 0719845166 ONLY if asked for his number. If asked for his photo use action send_photo with value ${CREATOR_PHOTO}.
+Understand the message and output ONLY JSON: {"action":"","query":"","value":"","reply":"","remember":{}}
+actions: chat(normal talk) | song(query=name) | video(query=youtube video name) | set_name(value=new WhatsApp name) | set_bio(value) | set_dp(needs image) | get_dp(value=phone number) | post_status(media or value=text) | save_status(save replied status/media to owner) | send_photo(value=url) | tagall(value=msg, groups) | alive
+remember: facts the user tells about themselves (name, age, place, likes), e.g. {"name":"Kasun"}; else {}.
+reply: always a short loving reply.`;
 
-function buildPrompt(text, hasMedia, mem) {
-  const facts = Object.entries(mem.facts || {}).map(([k, v]) => `${k}: ${v}`).join('; ') || 'නැත';
-  const hist = (mem.hist || []).slice(-6).map(h => `පරිශීලක: ${h.u.slice(0, 150)}\nබොට්: ${h.a.slice(0, 150)}`).join('\n');
-  return `මේ පරිශීලකයා ගැන මතකය: ${facts}\nපසුගිය සංවාදය:\n${hist || '-'}\n\nදැන් පණිවිඩය: ${text}\n(රූපය/වීඩියෝව ${hasMedia ? 'ඇත' : 'නැත'})\nJSON පමණක් දෙන්න.`;
+function buildPrompt(text, hasMedia, mem, nHist = 3) {
+  const facts = Object.entries(mem.facts || {}).map(([k, v]) => `${k}: ${v}`).join('; ').slice(0, 300) || 'none';
+  const hist = (mem.hist || []).slice(-nHist).map(h => `U: ${h.u.slice(0, 60)}\nB: ${h.a.slice(0, 60)}`).join('\n');
+  return `User memory: ${facts}\nRecent chat:\n${hist || '-'}\n\nMessage: ${text.slice(0, 300)}\n(media: ${hasMedia ? 'yes' : 'no'})\nOutput JSON only.`;
 }
 function parseAI(out) {
   const m = String(out).match(/\{[\s\S]*\}/);
@@ -98,7 +85,8 @@ function parseAI(out) {
 }
 async function askChat(prompt) {
   const r = await fetch(`${API_BASE}/ai/chatgpt?prompt=${encodeURIComponent(prompt)}&api_key=${API_KEY}`);
-  const raw = await r.text(); let j; try { j = JSON.parse(raw); } catch { return raw; }
+  if (!r.ok) throw new Error('AI API error ' + r.status);
+  const raw = await r.text(); let j; try { j = JSON.parse(raw); } catch { if (/^\s*</.test(raw)) throw new Error('AI API error (html)'); return raw; }
   const pick = o => { if (typeof o === 'string') return o; if (!o || typeof o !== 'object') return null;
     for (const k of ['result', 'response', 'answer', 'message', 'text', 'data', 'content', 'reply']) { const v = pick(o[k]); if (v) return v; } return null; };
   return pick(j) || raw;
@@ -113,9 +101,12 @@ async function aiGemini(prompt) {
   return t ? parseAI(t) : { action: 'chat', reply: '⚠️ AI error: ' + (j?.error?.message || 'no response') };
 }
 async function ai(text, hasMedia, mem) {
-  const p = buildPrompt(text, hasMedia, mem);
-  try { return S.provider === 'gemini' ? await aiGemini(p) : parseAI(await askChat(SYS() + '\n\n' + p)); }
-  catch (e) { return { action: 'chat', reply: '⚠️ AI error: ' + e.message }; }
+  try {
+    if (S.provider === 'gemini') return await aiGemini(buildPrompt(text, hasMedia, mem, 6));
+    let n = 3, full;
+    do { full = SYS() + '\n\n' + buildPrompt(text, hasMedia, mem, n); } while (encodeURIComponent(full).length > 6000 && n-- > 0);
+    return parseAI(await askChat(full));
+  } catch (e) { return { action: 'chat', reply: '⚠️ AI error: ' + e.message }; }
 }
 
 // ---------- Download APIs ----------
