@@ -1,43 +1,75 @@
 <!DOCTYPE html><html lang="si"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>Nethu AI Bot</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Nethu AI Bot</title>
 <style>
-:root{--bg:#0b0f1a;--card:#141b2d;--tx:#e8ecf6;--mu:#8a94ad;--ac:#25d366;--bd:#25304d}
-@media(prefers-color-scheme:light){:root{--bg:#f2f5fa;--card:#fff;--tx:#111827;--mu:#667085;--bd:#dde3ee}}
-*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--tx);padding:16px;max-width:520px;margin:auto}
-header{display:flex;align-items:center;gap:12px;margin-bottom:16px}header img{width:44px;height:44px;border-radius:50%;object-fit:cover;display:none}
-h1{font-size:20px;margin:0;flex:1}.gear{background:none;border:0;font-size:24px;cursor:pointer;color:var(--tx)}
-.card{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:16px;margin-bottom:14px}
-.row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-.dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px;background:#888}.open{background:var(--ac)}.connecting,.code{background:#f5a623}
-input,button{width:100%;padding:12px;border-radius:10px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);font-size:15px;margin-bottom:8px}
-button.p{background:var(--ac);color:#04210f;border:0;font-weight:700;cursor:pointer}button.d{background:#e5484d;color:#fff;border:0;cursor:pointer}
-.code-box{font-size:30px;letter-spacing:3px;text-align:center;font-weight:800;padding:14px;border:2px dashed var(--ac);border-radius:12px;margin:8px 0}
-small{color:var(--mu);display:block;margin-bottom:6px}.err{color:#e5484d;font-size:13px}
-#panel{display:none}label{font-size:13px;color:var(--mu)}
-</style></head><body>
-<header><img id="logo"><h1 id="title">Nethu AI Bot</h1><button class="gear" onclick="openSet()">⚙️</button></header>
-<div id="slots"></div>
-<div class="card" id="panel"><h3 style="margin-top:0">⚙️ Settings</h3><small>API URL වල link එක යන තැනට {url}, key එකට {key}, නමට {query} ලියන්න.</small><div id="form"></div>
-<button class="p" onclick="save()">💾 Save</button><button onclick="panel.style.display='none'">Close</button><div id="msg" class="err"></div></div>
+:root{--bg:#0a0e1a;--card:#131a2e;--card2:#1a2340;--tx:#eef1fa;--mu:#8b95b3;--ac:#25d366;--ac2:#128c7e;--bd:#242e50;--rd:#ef4444;--am:#f5a524}
+@media(prefers-color-scheme:light){:root{--bg:#eef2f8;--card:#fff;--card2:#f3f6fb;--tx:#101828;--mu:#667085;--bd:#dde4f0}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--tx);padding:env(safe-area-inset-top) 0 40px}
+.wrap{max-width:520px;margin:auto;padding:16px}
+.hero{display:flex;align-items:center;gap:14px;padding:18px;border-radius:20px;background:linear-gradient(135deg,var(--ac2),#0b5d52);color:#fff;margin-bottom:14px}
+.logo{width:56px;height:56px;border-radius:50%;background:#ffffff26;display:grid;place-items:center;font-size:28px;overflow:hidden;flex:none}
+.logo img{width:100%;height:100%;object-fit:cover}
+.hero h1{margin:0;font-size:20px}.hero p{margin:2px 0 0;font-size:13px;opacity:.85}.hero div.t{flex:1}
+.gear{width:42px;height:42px;border-radius:50%;border:0;background:#ffffff2e;color:#fff;font-size:20px;cursor:pointer}
+.steps{display:flex;gap:8px;margin-bottom:14px}.steps div{flex:1;background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:10px;font-size:12px;color:var(--mu);text-align:center}
+.steps b{display:block;color:var(--ac);font-size:16px;margin-bottom:2px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:16px;margin-bottom:12px}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.top b{font-size:16px}.pill{font-size:12px;padding:4px 10px;border-radius:99px;background:var(--card2);color:var(--mu);display:flex;align-items:center;gap:6px}
+.pill i{width:8px;height:8px;border-radius:50%;background:#888}.pill.open i{background:var(--ac);box-shadow:0 0 8px var(--ac)}.pill.connecting i,.pill.code i{background:var(--am)}
+input,textarea{width:100%;padding:13px;border-radius:12px;border:1px solid var(--bd);background:var(--card2);color:var(--tx);font-size:15px;margin-bottom:10px;font-family:inherit}
+textarea{min-height:90px;resize:vertical}input:focus,textarea:focus{outline:2px solid var(--ac);border-color:transparent}
+.btn{width:100%;padding:13px;border-radius:12px;border:0;font-size:15px;font-weight:700;cursor:pointer;background:var(--ac);color:#04210f}
+.btn.g{background:var(--card2);color:var(--tx);border:1px solid var(--bd)}.btn.d{background:var(--rd);color:#fff}
+.code{font-size:32px;font-weight:800;letter-spacing:4px;text-align:center;padding:16px;border:2px dashed var(--ac);border-radius:14px;margin:6px 0 10px;font-variant-numeric:tabular-nums}
+.num{font-size:17px;font-weight:600;margin-bottom:10px}.hint{color:var(--mu);font-size:12.5px;line-height:1.5;margin:0 0 10px}.err{color:var(--rd);font-size:13px;margin-top:8px}
+.spin{width:18px;height:18px;border:3px solid var(--bd);border-top-color:var(--ac);border-radius:50%;animation:s 1s linear infinite;display:inline-block;vertical-align:middle;margin-right:8px}@keyframes s{to{transform:rotate(360deg)}}
+.ov{position:fixed;inset:0;background:#0008;display:none;z-index:10}.ov.on{display:block}
+.sheet{position:fixed;left:0;right:0;bottom:0;max-height:90vh;overflow:auto;background:var(--bg);border-radius:24px 24px 0 0;padding:18px 16px calc(24px + env(safe-area-inset-bottom));max-width:560px;margin:auto;transform:translateY(100%);transition:.25s;z-index:11}
+.sheet.on{transform:none}.sheet h2{margin:0 0 14px;font-size:18px;display:flex;justify-content:space-between}
+.sec{font-size:13px;font-weight:700;color:var(--ac);margin:16px 0 8px}label{font-size:13px;color:var(--mu);display:block;margin-bottom:4px}
+.tg{display:flex;justify-content:space-between;align-items:center;background:var(--card);border:1px solid var(--bd);padding:12px 14px;border-radius:12px;margin-bottom:8px;font-size:14px}
+.tg input{width:46px;height:26px;margin:0;appearance:none;background:var(--bd);border-radius:99px;position:relative;cursor:pointer;padding:0;border:0}
+.tg input::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s}.tg input:checked{background:var(--ac)}.tg input:checked::after{left:23px}
+.toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%) translateY(100px);background:#111;color:#fff;padding:12px 18px;border-radius:12px;font-size:14px;transition:.3s;z-index:20}.toast.on{transform:translateX(-50%)}
+</style></head><body><div class="wrap">
+<div class="hero"><div class="logo" id="logo">🤖</div><div class="t"><h1 id="title">Nethu AI Bot</h1><p>WhatsApp Multi-Device • AI Powered</p></div><button class="gear" onclick="openSet()">⚙️</button></div>
+<div class="steps"><div><b>1</b>අංකය දාන්න</div><div><b>2</b>Code එක ගන්න</div><div><b>3</b>WhatsApp එකේ ගහන්න</div></div>
+<div id="slots"></div></div>
+<div class="ov" id="ov" onclick="closeSet()"></div>
+<div class="sheet" id="sh"><h2>⚙️ Settings <span onclick="closeSet()" style="cursor:pointer">✕</span></h2>
+<div id="lock"><label>Admin password</label><input id="pw" type="password" placeholder="••••••••"><button class="btn" onclick="unlock()">Unlock</button></div>
+<div id="form" style="display:none"></div></div>
+<div class="toast" id="toast"></div>
 <script>
-const $=id=>document.getElementById(id);let adm='';
-const txt={idle:'සම්බන්ධ නැත',connecting:'සම්බන්ධ වෙමින්...',code:'Code එක WhatsApp එකේ ගහන්න',open:'සම්බන්ධයි ✅'};
-async function api(u,b,h={}){const r=await fetch(u,{method:b?'POST':'GET',headers:{'Content-Type':'application/json',...h},body:b?JSON.stringify(b):undefined});return r.json()}
-function slotHTML(i,s){return `<div class="card"><div class="row"><b>📱 Device ${i}</b><span><i class="dot ${s.status}"></i>${txt[s.status]}</span></div>`+
-(s.status==='open'?`<small>+${s.number}</small><button class="d" onclick="out(${i})">Logout</button>`:
-s.status==='code'?`<small>WhatsApp → Linked devices → Link with phone number</small><div class="code-box">${s.code}</div>`:
-s.status==='connecting'?'':`<input id="n${i}" placeholder="94712345678" inputmode="numeric"><button class="p" onclick="pair(${i})">Pair Code ගන්න</button>`)+
-(s.error?`<div class="err">${s.error}</div>`:'')+`</div>`}
-let typing=false;async function load(){if(typing)return;const d=await api('/api/status');$('title').textContent=d.botName+' AI Bot';document.title=d.botName;
-if(d.logo){$('logo').src=d.logo;$('logo').style.display='block'}
-const a=document.activeElement;if(a&&a.tagName==='INPUT'&&a.id.startsWith('n'))return;
-$('slots').innerHTML=slotHTML(1,d.slots[1])+slotHTML(2,d.slots[2])}
-async function pair(i){const r=await api('/api/pair',{slot:i,number:$('n'+i).value});if(r.error)alert(r.error);load()}
-async function out(i){if(confirm('Logout කරන්නද?')){await api('/api/logout',{slot:i});load()}}
-const F=[['botName','Bot Name'],['owner','Bot / Owner number (94...)'],['sudo','Sudo numbers (කොමාවෙන් වෙන් කරන්න)'],['logo','Logo URL'],['provider','AI Provider (chatgpt / gemini)'],['chatKey','ChatGPT API Key (chamindu)'],['geminiKey','Gemini API Key'],['apiKey','API Key (chamindu.site)'],['epYtmp3','YouTube MP3 API'],['epYtmp4','YouTube MP4 (video) API'],['epTiktok','TikTok API'],['epFb','Facebook API'],['epIg','Instagram API'],['model','AI Model'],['mongoUrl','MongoDB URL (වෙනස් කළොත් restart වෙයි)']];
-async function openSet(){adm=prompt('Admin password');if(!adm)return;const d=await api('/api/settings',null,{'x-admin':adm});
-if(d.error)return alert(d.error);$('form').innerHTML=F.map(([k,l])=>`<label>${l}</label><input id="f_${k}" value="${(d[k]||'').replace(/"/g,'&quot;')}">`).join('');panel.style.display='block';panel.scrollIntoView()}
-async function save(){const b={};F.forEach(([k])=>b[k]=$('f_'+k).value);const r=await api('/api/settings',b,{'x-admin':adm});
-$('msg').style.color='#25d366';$('msg').textContent=r.restart?'Saved. Server restart වෙනවා...':r.error||'✅ Saved';load()}
+const $=s=>document.querySelector(s);let adm='';const sig={};
+const api=async(u,b,h={})=>{const r=await fetch(u,{method:b?'POST':'GET',headers:{'Content-Type':'application/json',...h},body:b?JSON.stringify(b):undefined});return r.json()};
+const toast=t=>{const e=$('#toast');e.textContent=t;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),2500)};
+const LBL={idle:'Offline',connecting:'Connecting',code:'Waiting for code',open:'Online'};
+function card(i,s){let b='';
+ if(s.status==='open')b=`<div class="num">📞 +${s.number}</div><p class="hint">Bot සක්‍රියයි. "නෙතූ hi" කියලා test කරන්න.</p><button class="btn d" onclick="out(${i})">Logout</button>`;
+ else if(s.status==='code')b=`<p class="hint">WhatsApp → Settings → Linked devices → Link a device → <b>Link with phone number</b> → මේ code එක ගහන්න</p><div class="code">${s.code}</div><button class="btn g" onclick="cp('${s.code}')">📋 Copy code</button>`;
+ else if(s.status==='connecting')b=`<p class="hint"><span class="spin"></span>සම්බන්ධ වෙමින්...</p>`;
+ else b=`<input id="n${i}" type="tel" inputmode="numeric" placeholder="94712345678"><button class="btn" onclick="pair(${i})">🔗 Pair Code ගන්න</button>`;
+ return `<div class="card"><div class="top"><b>📱 Bot ${i}</b><span class="pill ${s.status}"><i></i>${LBL[s.status]}</span></div>${b}${s.error?`<div class="err">${s.error}</div>`:''}</div>`}
+async function load(){const d=await api('/api/status');$('#title').textContent=d.botName+' AI Bot';document.title=d.botName;
+ if(d.logo&&!$('#logo img'))$('#logo').innerHTML=`<img src="${d.logo}" onerror="this.remove()">`;
+ const w=$('#slots');for(const[i,s]of Object.entries(d.slots)){const k=JSON.stringify(s);if(sig[i]===k)continue;sig[i]=k;let e=$('#c'+i);if(!e){e=document.createElement('div');e.id='c'+i;w.appendChild(e)}e.innerHTML=card(i,s)}}
+async function pair(i){const n=$('#n'+i).value;const r=await api('/api/pair',{slot:i,number:n});if(r.error)toast(r.error);sig[i]=0;load()}
+async function out(i){if(confirm('Logout කරන්නද?')){await api('/api/logout',{slot:i});sig[i]=0;load()}}
+function cp(c){navigator.clipboard?.writeText(c.replace(/-/g,''));toast('Copied ✅')}
+const SEC=[['🤖 Bot',[['botName','Bot නම'],['owner','Owner number (94...)'],['sudo','Sudo numbers (කොමාවෙන්)'],['logo','Logo URL'],['names','AI එකට කතා කරන නම් (කොමාවෙන් වෙන් කරන්න)','area']]],
+['👁️ Status',[['statusSeen','Status auto seen','b'],['statusReact','Status auto react','b'],['reactEmojis','React emojis (කොමාවෙන්)'],['statusSave','Status auto save (owner chat එකට)','b']]],
+['⚙️ General',[['autoRead','Auto read messages','b'],['autoTyping','Typing පෙන්නන්න','b'],['alwaysOnline','Always online','b']]],
+['🧠 AI',[['provider','Provider (chatgpt / gemini)'],['geminiKey','Gemini API key (විකල්ප)'],['model','Gemini model']]],
+['🗄️ Database',[['mongoUrl','MongoDB URL (වෙනස් කළොත් restart වෙයි)']]]];
+const q=v=>String(v||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+async function unlock(){adm=$('#pw').value;const d=await api('/api/settings',null,{'x-admin':adm});if(d.error)return toast(d.error);
+ $('#lock').style.display='none';const f=$('#form');f.style.display='block';
+ f.innerHTML=SEC.map(([t,fs])=>`<div class="sec">${t}</div>`+fs.map(([k,l,ty])=>ty==='b'?`<div class="tg">${l}<input type="checkbox" id="f_${k}" ${d[k]==='1'?'checked':''}></div>`:
+ ty==='area'?`<label>${l}</label><textarea id="f_${k}">${q(d[k])}</textarea>`:`<label>${l}</label><input id="f_${k}" value="${q(d[k])}">`).join('')).join('')+`<button class="btn" onclick="save()" style="margin-top:12px">💾 Save</button>`}
+async function save(){const b={};SEC.forEach(([,fs])=>fs.forEach(([k,,ty])=>{const e=$('#f_'+k);b[k]=ty==='b'?(e.checked?'1':'0'):e.value}));
+ const r=await api('/api/settings',b,{'x-admin':adm});toast(r.restart?'Saved ✅ restart වෙනවා...':r.error||'Saved ✅');if(r.ok&&!r.restart){load();closeSet()}}
+function openSet(){$('#ov').classList.add('on');$('#sh').classList.add('on')}function closeSet(){$('#ov').classList.remove('on');$('#sh').classList.remove('on')}
 load();setInterval(load,3000);
 </script></body></html>
