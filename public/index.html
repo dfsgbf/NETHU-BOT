@@ -5,14 +5,13 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>NETHU AI V3 PRO</title>
   <link rel="icon" type="image/jpeg" href="https://files.catbox.moe/17p3nr.jpg" />
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     :root {
       --bg: #060609;
       --bg2: #0d0d14;
-      --card: rgba(16, 16, 24, 0.88);
+      --card: rgba(16, 16, 24, 0.9);
       --card2: #151520;
-      --bd: rgba(255, 30, 66, 0.22);
+      --bd: rgba(255, 30, 66, 0.25);
       --bd-soft: rgba(255, 255, 255, 0.08);
       --red: #ff1e42;
       --red2: #b8001f;
@@ -31,11 +30,143 @@
         var(--bg);
       color: var(--tx);
       min-height: 100vh;
-      padding: calc(12px + env(safe-area-inset-top)) 14px 48px;
+      padding: calc(14px + env(safe-area-inset-top)) 14px 48px;
     }
     .wrap { max-width: 580px; margin: auto; }
 
-    /* Top Auth Bar */
+    /* Initial Loading Screen */
+    .boot-screen {
+      min-height: 82vh;
+      display: grid;
+      place-items: center;
+      text-align: center;
+    }
+
+    /* Full-Screen Login / Sign-In Gate */
+    .login-gate {
+      min-height: 85vh;
+      display: none;
+      place-items: center;
+    }
+    .login-gate.on { display: grid; }
+    .gate-box {
+      width: 100%;
+      max-width: 420px;
+      background: linear-gradient(165deg, #151521 0%, #0b0b12 100%);
+      border: 1px solid var(--bd);
+      border-radius: 26px;
+      padding: 24px 20px;
+      box-shadow: 0 24px 65px rgba(0, 0, 0, 0.9), 0 0 32px rgba(255, 30, 66, 0.16);
+      position: relative;
+      overflow: hidden;
+      animation: popIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .gate-box::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--red), #ff6b81, transparent);
+    }
+    @keyframes popIn {
+      from { opacity: 0; transform: scale(0.94) translateY(12px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .gate-head {
+      text-align: center;
+      margin-bottom: 18px;
+    }
+    .gate-logo {
+      width: 68px; height: 68px;
+      margin: 0 auto 10px;
+      border-radius: 50%;
+      padding: 3px;
+      background: conic-gradient(from 0deg, var(--red), #ff758c, #4a000d, var(--red));
+      box-shadow: 0 0 22px var(--red-glow);
+    }
+    .gate-logo img {
+      width: 100%; height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+      background: #12121a;
+    }
+    .gate-head h2 {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 0.3px;
+    }
+    .gate-head p {
+      font-size: 12.5px;
+      color: var(--mu);
+      margin-top: 4px;
+    }
+
+    .auth-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      background: var(--card2);
+      padding: 4px;
+      border-radius: 13px;
+      border: 1px solid var(--bd-soft);
+      margin-bottom: 14px;
+    }
+    .auth-tab {
+      padding: 9px;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+      color: var(--mu);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .auth-tab.active {
+      background: linear-gradient(135deg, var(--red), var(--red2));
+      color: #fff;
+      box-shadow: 0 4px 14px var(--red-glow);
+    }
+    .btn-google-full {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 13px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: #ffffff;
+      color: #111827;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: 0.2s;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    }
+    .btn-google-full:active { transform: scale(0.98); }
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 14px 0;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--mu);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+    .divider::before, .divider::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--bd-soft);
+    }
+
+    /* Protected App Container (Hidden until Login) */
+    #appContent { display: none; }
+    #appContent.on { display: block; }
+
+    /* Top Logged-In User Bar */
     .topbar {
       display: flex;
       align-items: center;
@@ -44,76 +175,18 @@
       margin-bottom: 12px;
       padding: 8px 12px;
       border-radius: 16px;
-      background: rgba(13, 13, 20, 0.85);
+      background: rgba(13, 13, 20, 0.88);
       border: 1px solid var(--bd-soft);
       backdrop-filter: blur(12px);
     }
-    .brand-mini {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      font-size: 12.5px;
-      font-weight: 800;
-      letter-spacing: 0.4px;
-    }
-    .brand-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--red);
-      box-shadow: 0 0 10px var(--red);
-    }
-    .auth-actions {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .btn-google-mini {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      padding: 7px 12px;
-      border-radius: 99px;
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      background: #ffffff;
-      color: #111827;
-      font-size: 12px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: 0.2s;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
-    }
-    .btn-google-mini:active { transform: scale(0.96); }
-    .btn-signin-mini {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 7px 13px;
-      border-radius: 99px;
-      border: 1px solid rgba(255, 30, 66, 0.45);
-      background: linear-gradient(135deg, var(--red), var(--red2));
-      color: #fff;
-      font-size: 12px;
-      font-weight: 700;
-      cursor: pointer;
-      box-shadow: 0 4px 14px var(--red-glow);
-      transition: 0.2s;
-    }
-    .btn-signin-mini:active { transform: scale(0.96); }
-
-    /* Logged In User Pill */
     .user-chip {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 4px 10px 4px 5px;
-      border-radius: 99px;
-      background: rgba(255, 30, 66, 0.12);
-      border: 1px solid rgba(255, 30, 66, 0.35);
+      min-width: 0;
     }
     .user-av {
-      width: 26px;
-      height: 26px;
+      width: 28px; height: 28px;
       border-radius: 50%;
       background: linear-gradient(135deg, var(--red), var(--red2));
       color: #fff;
@@ -122,35 +195,37 @@
       display: grid;
       place-items: center;
       overflow: hidden;
+      flex: none;
     }
     .user-av img { width: 100%; height: 100%; object-fit: cover; }
+    .user-meta { min-width: 0; }
     .user-name {
-      font-size: 12px;
+      font-size: 12.5px;
       font-weight: 700;
       color: #fff;
-      max-width: 110px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .g-tag {
-      font-size: 9px;
-      font-weight: 800;
-      padding: 2px 5px;
-      border-radius: 6px;
-      background: rgba(255, 255, 255, 0.12);
-      color: #93c5fd;
+    .user-mail {
+      font-size: 10.5px;
+      color: var(--mu);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .btn-out-mini {
-      padding: 6px 10px;
+      padding: 7px 12px;
       border-radius: 99px;
-      border: 1px solid var(--bd-soft);
-      background: var(--card2);
+      border: 1px solid rgba(255, 30, 66, 0.35);
+      background: rgba(255, 30, 66, 0.12);
       color: #ff6b81;
       font-size: 11.5px;
       font-weight: 700;
       cursor: pointer;
+      flex: none;
     }
+    .btn-out-mini:hover { background: var(--red); color: #fff; }
 
     /* Hero Header */
     .hero {
@@ -302,6 +377,7 @@
       transition: 0.2s;
     }
     .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
     .btn.g { background: var(--card2); color: var(--tx); border: 1px solid var(--bd); box-shadow: none; }
     .btn.d { background: rgba(255, 30, 66, 0.14); color: #ff5c77; border: 1px solid rgba(255, 30, 66, 0.35); box-shadow: none; }
     .btn.d:hover { background: var(--red); color: #fff; }
@@ -330,107 +406,6 @@
       display: inline-block; vertical-align: middle; margin-right: 8px;
     }
     @keyframes s { to { transform: rotate(360deg); } }
-
-    /* Auth Modal */
-    .auth-modal {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.8);
-      backdrop-filter: blur(8px);
-      display: none;
-      place-items: center;
-      padding: 16px;
-      z-index: 30;
-    }
-    .auth-modal.on { display: grid; }
-    .auth-box {
-      width: 100%;
-      max-width: 400px;
-      background: linear-gradient(165deg, #14141f 0%, #0b0b12 100%);
-      border: 1px solid var(--bd);
-      border-radius: 24px;
-      padding: 20px 18px;
-      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.88), 0 0 30px rgba(255, 30, 66, 0.15);
-      animation: popIn 0.24s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    @keyframes popIn {
-      from { opacity: 0; transform: scale(0.93) translateY(10px); }
-      to { opacity: 1; transform: scale(1) translateY(0); }
-    }
-    .auth-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 14px;
-    }
-    .auth-head h3 {
-      font-size: 17px;
-      font-weight: 800;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .auth-tabs {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-      background: var(--card2);
-      padding: 4px;
-      border-radius: 13px;
-      border: 1px solid var(--bd-soft);
-      margin-bottom: 14px;
-    }
-    .auth-tab {
-      padding: 9px;
-      border: 0;
-      border-radius: 10px;
-      background: transparent;
-      color: var(--mu);
-      font-size: 13px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: 0.2s;
-    }
-    .auth-tab.active {
-      background: linear-gradient(135deg, var(--red), var(--red2));
-      color: #fff;
-      box-shadow: 0 4px 14px var(--red-glow);
-    }
-    .btn-google-full {
-      width: 100%;
-      padding: 12px 14px;
-      border-radius: 13px;
-      border: 1px solid rgba(255, 255, 255, 0.16);
-      background: #ffffff;
-      color: #111827;
-      font-size: 14px;
-      font-weight: 700;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      transition: 0.2s;
-      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
-    }
-    .btn-google-full:active { transform: scale(0.98); }
-    .divider {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin: 14px 0;
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--mu);
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-    }
-    .divider::before, .divider::after {
-      content: "";
-      flex: 1;
-      height: 1px;
-      background: var(--bd-soft);
-    }
 
     /* Bottom Sheet Settings */
     .ov { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.72); backdrop-filter: blur(4px); display: none; z-index: 10; }
@@ -492,123 +467,103 @@
 </head>
 <body>
   <div class="wrap">
-    <!-- Top Account Bar (Google Login + Sign In) -->
-    <div class="topbar">
-      <div class="brand-mini">
-        <span class="brand-dot"></span>
-        <span>HESHAN OFC</span>
-      </div>
-
-      <div class="auth-actions" id="authBar">
-        <button class="btn-google-mini" onclick="startGoogleLogin()">
-          <svg width="14" height="14" viewBox="0 0 48 48">
-            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-          </svg>
-          <span>Google</span>
-        </button>
-        <button class="btn-signin-mini" onclick="openAuth('login')">Sign In</button>
-      </div>
+    <!-- 1. Initial Firebase Session Check -->
+    <div id="bootScreen" class="boot-screen">
+      <div><span class="spin"></span><span style="color:var(--mu);font-size:13.5px">Checking session...</span></div>
     </div>
 
-    <div class="hero">
-      <div class="logo-ring">
-        <div class="logo" id="logo">
-          <img src="https://files.catbox.moe/17p3nr.jpg" onerror="this.remove();$('#logo').textContent='🤖'" alt="Bot Icon" />
+    <!-- 2. Login / Sign-In Gate Box (Shown First Until Logged In) -->
+    <div id="loginGate" class="login-gate">
+      <div class="gate-box">
+        <div class="gate-head">
+          <div class="gate-logo">
+            <img src="https://files.catbox.moe/17p3nr.jpg" alt="NETHU AI" />
+          </div>
+          <h2>NETHU AI V3 PRO</h2>
+          <p>ඉදිරියට යාමට කරුණාකර Sign In වන්න</p>
         </div>
-      </div>
-      <div class="hero-info">
-        <div class="title-row">
-          <h1 id="title">Nethu AI Bot</h1>
-          <span class="v-badge">V3 PRO</span>
+
+        <div class="auth-tabs">
+          <button type="button" class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Sign In</button>
+          <button type="button" class="auth-tab" id="tabSignup" onclick="switchAuthTab('signup')">Create Account</button>
         </div>
-        <p>Multi-Device WhatsApp AI & Group Guard</p>
-        <div class="mini-stats">
-          <div class="m-stat">⏱️ <b id="up">--</b></div>
-          <div class="m-stat">📦 <b id="cmds">--</b> Cmds</div>
-        </div>
-      </div>
-      <button class="gear" onclick="openSet()" title="Admin Settings">⚙️</button>
-    </div>
 
-    <div class="steps">
-      <div><b>1</b><span>අංකය දාන්න</span></div>
-      <div><b>2</b><span>Code එක ගන්න</span></div>
-      <div><b>3</b><span>WhatsApp ලින්ක් කරන්න</span></div>
-    </div>
-
-    <div id="slots"></div>
-
-    <div class="footer">Powered by <b>HESHAN OFC</b> • MR HESHAN MD TECH WEB</div>
-  </div>
-
-  <!-- Sign In / Sign Up & Google Modal -->
-  <div class="auth-modal" id="authModal" onclick="closeAuth()">
-    <div class="auth-box" onclick="event.stopPropagation()">
-      <div class="auth-head">
-        <h3>🔐 Account Access</h3>
-        <span class="close-x" onclick="closeAuth()">✕</span>
-      </div>
-
-      <div class="auth-tabs">
-        <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Sign In</button>
-        <button class="auth-tab" id="tabSignup" onclick="switchAuthTab('signup')">Create Account</button>
-      </div>
-
-      <button type="button" class="btn-google-full" onclick="startGoogleLogin()">
-        <svg width="18" height="18" viewBox="0 0 48 48">
-          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-        </svg>
-        <span>Continue with Google</span>
-      </button>
-
-      <div class="divider">or with email</div>
-
-      <form id="authForm" onsubmit="submitEmailAuth(event)">
-        <div id="nameWrap" style="display:none">
-          <label>ඔබේ නම (Full Name)</label>
-          <input id="authName" type="text" placeholder="Dinidu Heshan" />
-        </div>
-        <label>Email Address</label>
-        <input id="authEmail" type="email" placeholder="example@gmail.com" required />
-        <label>Password</label>
-        <input id="authPass" type="password" placeholder="••••••••" required />
-        <button type="submit" class="btn" id="authSubmitBtn">Sign In</button>
-      </form>
-    </div>
-  </div>
-
-  <!-- Google Quick Email Prompt Modal (Used if Google Client ID isn't configured) -->
-  <div class="auth-modal" id="googleQuickModal" onclick="closeGoogleQuick()">
-    <div class="auth-box" onclick="event.stopPropagation()">
-      <div class="auth-head">
-        <h3>
+        <button type="button" class="btn-google-full" id="googleBtn" onclick="loginWithGoogle()">
           <svg width="18" height="18" viewBox="0 0 48 48">
             <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
             <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
             <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
             <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
           </svg>
-          <span>Google Account Sign In</span>
-        </h3>
-        <span class="close-x" onclick="closeGoogleQuick()">✕</span>
+          <span>Continue with Google</span>
+        </button>
+
+        <div class="divider">or with email</div>
+
+        <form onsubmit="submitFirebaseEmail(event)">
+          <div id="nameWrap" style="display:none">
+            <label>ඔබේ නම (Full Name)</label>
+            <input id="authName" type="text" placeholder="Dinidu Heshan" />
+          </div>
+          <label>Email Address</label>
+          <input id="authEmail" type="email" placeholder="example@gmail.com" required />
+          <label>Password (අවම අකුරු 6ක්)</label>
+          <input id="authPass" type="password" placeholder="••••••••" minlength="6" required />
+          <button type="submit" class="btn" id="authSubmitBtn">Sign In</button>
+        </form>
+
+        <div id="authErr" class="err" style="display:none"></div>
+
+        <div class="footer" style="margin-top:16px">Secured by <b>HESHAN OFC</b> • Firebase Auth</div>
       </div>
-      <p class="hint">ඔබේ Gmail ලිපිනය ඇතුළත් කර Google හරහා ක්ෂණිකව සම්බන්ධ වන්න:</p>
-      <form onsubmit="finishQuickGoogle(event)">
-        <label>Gmail Address</label>
-        <input id="gEmail" type="email" placeholder="yourname@gmail.com" required />
-        <label>Display Name (විකල්ප)</label>
-        <input id="gName" type="text" placeholder="Heshan" />
-        <button type="submit" class="btn-google-full">Continue with Google ✓</button>
-      </form>
+    </div>
+
+    <!-- 3. Protected Main Dashboard (Visible ONLY After Firebase Login) -->
+    <div id="appContent">
+      <div class="topbar">
+        <div class="user-chip">
+          <div class="user-av" id="uAvatar">H</div>
+          <div class="user-meta">
+            <div class="user-name" id="uName">User</div>
+            <div class="user-mail" id="uEmail">user@gmail.com</div>
+          </div>
+        </div>
+        <button class="btn-out-mini" onclick="logoutFirebase()">Logout</button>
+      </div>
+
+      <div class="hero">
+        <div class="logo-ring">
+          <div class="logo" id="logo">
+            <img src="https://files.catbox.moe/17p3nr.jpg" onerror="this.remove();$('#logo').textContent='🤖'" alt="Bot Icon" />
+          </div>
+        </div>
+        <div class="hero-info">
+          <div class="title-row">
+            <h1 id="title">Nethu AI Bot</h1>
+            <span class="v-badge">V3 PRO</span>
+          </div>
+          <p>Multi-Device WhatsApp AI & Group Guard</p>
+          <div class="mini-stats">
+            <div class="m-stat">⏱️ <b id="up">--</b></div>
+            <div class="m-stat">📦 <b id="cmds">--</b> Cmds</div>
+          </div>
+        </div>
+        <button class="gear" onclick="openSet()" title="Admin Settings">⚙️</button>
+      </div>
+
+      <div class="steps">
+        <div><b>1</b><span>අංකය දාන්න</span></div>
+        <div><b>2</b><span>Code එක ගන්න</span></div>
+        <div><b>3</b><span>WhatsApp ලින්ක් කරන්න</span></div>
+      </div>
+
+      <div id="slots"></div>
+
+      <div class="footer">Powered by <b>HESHAN OFC</b> • MR HESHAN MD TECH WEB</div>
     </div>
   </div>
 
+  <!-- Bottom Sheet Settings -->
   <div class="ov" id="ov" onclick="closeSet()"></div>
   <div class="sheet" id="sh">
     <div class="sheet-bar"></div>
@@ -623,13 +578,139 @@
 
   <div class="toast" id="toast"></div>
 
+  <!-- Firebase SDK (Modular v10) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+    import {
+      getAuth,
+      onAuthStateChanged,
+      GoogleAuthProvider,
+      signInWithPopup,
+      signInWithEmailAndPassword,
+      createUserWithEmailAndPassword,
+      updateProfile,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+
+    // ⚠️ ඔයාගේ Firebase Console -> Project Settings -> Web App Config එක මෙතනට දාන්න:
+    const firebaseConfig = {
+      apiKey: "YOUR_FIREBASE_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.firebasestorage.app",
+      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const googleProvider = new GoogleAuthProvider();
+
+    let authMode = 'login';
+    let poller = null;
+
+    function showAuthError(msg) {
+      const box = document.getElementById('authErr');
+      if (!msg) {
+        box.style.display = 'none';
+        return;
+      }
+      box.textContent = '⚠️ ' + msg;
+      box.style.display = 'block';
+    }
+
+    window.switchAuthTab = (mode) => {
+      authMode = mode;
+      showAuthError('');
+      document.getElementById('tabLogin').classList.toggle('active', mode === 'login');
+      document.getElementById('tabSignup').classList.toggle('active', mode === 'signup');
+      document.getElementById('nameWrap').style.display = mode === 'signup' ? 'block' : 'none';
+      document.getElementById('authSubmitBtn').textContent = mode === 'signup' ? 'Create Account' : 'Sign In';
+    };
+
+    window.loginWithGoogle = async () => {
+      showAuthError('');
+      const btn = document.getElementById('googleBtn');
+      btn.disabled = true;
+      try {
+        await signInWithPopup(auth, googleProvider);
+        window.toast('Google Sign-In සාර්ථකයි ✅');
+      } catch (err) {
+        showAuthError(err?.message || 'Google login failed.');
+      } finally {
+        btn.disabled = false;
+      }
+    };
+
+    window.submitFirebaseEmail = async (e) => {
+      e.preventDefault();
+      showAuthError('');
+      const email = document.getElementById('authEmail').value.trim();
+      const pass = document.getElementById('authPass').value.trim();
+      const name = document.getElementById('authName').value.trim();
+      const btn = document.getElementById('authSubmitBtn');
+      btn.disabled = true;
+
+      try {
+        if (authMode === 'signup') {
+          const cred = await createUserWithEmailAndPassword(auth, email, pass);
+          if (name) {
+            await updateProfile(cred.user, { displayName: name });
+          }
+          window.toast('Account එක සාර්ථකව සෑදුවා ✅');
+        } else {
+          await signInWithEmailAndPassword(auth, email, pass);
+          window.toast('Sign In සාර්ථකයි ✅');
+        }
+      } catch (err) {
+        showAuthError(err?.message || 'Authentication failed.');
+      } finally {
+        btn.disabled = false;
+      }
+    };
+
+    window.logoutFirebase = async () => {
+      await signOut(auth);
+      window.toast('Logged out 👋');
+    };
+
+    // Gate Controller: Show ONLY Login Box when logged out, Dashboard ONLY when logged in
+    onAuthStateChanged(auth, (user) => {
+      document.getElementById('bootScreen').style.display = 'none';
+      const gate = document.getElementById('loginGate');
+      const content = document.getElementById('appContent');
+
+      if (user) {
+        gate.classList.remove('on');
+        content.classList.add('on');
+
+        const displayName = user.displayName || (user.email ? user.email.split('@')[0] : 'Member');
+        document.getElementById('uName').textContent = displayName;
+        document.getElementById('uEmail').textContent = user.email || '';
+        const av = document.getElementById('uAvatar');
+        if (user.photoURL) {
+          av.innerHTML = `<img src="${user.photoURL}" alt="User">`;
+        } else {
+          av.textContent = displayName[0].toUpperCase();
+        }
+
+        window.load();
+        if (!poller) poller = setInterval(window.load, 3000);
+      } else {
+        content.classList.remove('on');
+        gate.classList.add('on');
+        if (poller) {
+          clearInterval(poller);
+          poller = null;
+        }
+      }
+    });
+  </script>
+
   <script>
     const $ = (s) => document.querySelector(s);
     let adm = '';
     const sig = {};
-
-    // Optional: Paste your Google OAuth Client ID here if you have one
-    const GOOGLE_CLIENT_ID = '';
 
     const api = async (u, b, h = {}) => {
       const r = await fetch(u, {
@@ -640,141 +721,13 @@
       return r.json();
     };
 
-    const toast = (t) => {
+    window.toast = (t) => {
       const e = $('#toast');
       e.textContent = t;
       e.classList.add('on');
       setTimeout(() => e.classList.remove('on'), 2600);
     };
 
-    /* ================= AUTH SYSTEM (GOOGLE + EMAIL SIGN IN) ================= */
-    let authMode = 'login';
-
-    function getSavedUser() {
-      try {
-        return JSON.parse(localStorage.getItem('nethu_user') || 'null');
-      } catch {
-        return null;
-      }
-    }
-
-    function saveUser(u) {
-      localStorage.setItem('nethu_user', JSON.stringify(u));
-      renderAuthBar();
-      // Sync with backend /api/auth if available
-      fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: u.provider === 'google' ? 'google' : 'login', ...u })
-      }).catch(() => {});
-    }
-
-    function logoutUser() {
-      localStorage.removeItem('nethu_user');
-      renderAuthBar();
-      toast('Signed out successfully 👋');
-    }
-
-    function renderAuthBar() {
-      const bar = $('#authBar');
-      const u = getSavedUser();
-      if (u && u.email) {
-        const initial = (u.name || u.email)[0].toUpperCase();
-        bar.innerHTML = `
-          <div class="user-chip">
-            <div class="user-av">${u.picture ? `<img src="${u.picture}" alt="U">` : initial}</div>
-            <span class="user-name">${u.name || u.email.split('@')[0]}</span>
-            ${u.provider === 'google' ? '<span class="g-tag">G</span>' : ''}
-          </div>
-          <button class="btn-out-mini" onclick="logoutUser()">Logout</button>
-        `;
-      } else {
-        bar.innerHTML = `
-          <button class="btn-google-mini" onclick="startGoogleLogin()">
-            <svg width="14" height="14" viewBox="0 0 48 48">
-              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-            </svg>
-            <span>Google</span>
-          </button>
-          <button class="btn-signin-mini" onclick="openAuth('login')">Sign In</button>
-        `;
-      }
-    }
-
-    function openAuth(mode = 'login') {
-      switchAuthTab(mode);
-      $('#authModal').classList.add('on');
-    }
-    function closeAuth() {
-      $('#authModal').classList.remove('on');
-    }
-    function switchAuthTab(mode) {
-      authMode = mode;
-      $('#tabLogin').classList.toggle('active', mode === 'login');
-      $('#tabSignup').classList.toggle('active', mode === 'signup');
-      $('#nameWrap').style.display = mode === 'signup' ? 'block' : 'none';
-      $('#authSubmitBtn').textContent = mode === 'signup' ? 'Create Account' : 'Sign In';
-    }
-
-    function submitEmailAuth(e) {
-      e.preventDefault();
-      const email = $('#authEmail').value.trim();
-      const pass = $('#authPass').value.trim();
-      const rawName = $('#authName').value.trim();
-      if (!email || !pass) return toast('Email සහ Password ඇතුළත් කරන්න!');
-      const name = rawName || email.split('@')[0];
-      saveUser({ name, email, provider: 'email' });
-      closeAuth();
-      toast(`Welcome ${name} ✅`);
-    }
-
-    function startGoogleLogin() {
-      closeAuth();
-      if (GOOGLE_CLIENT_ID && window.google?.accounts?.id) {
-        window.google.accounts.id.initialize({
-          client_id: GOOGLE_CLIENT_ID,
-          callback: (resp) => {
-            try {
-              const payload = JSON.parse(atob(resp.credential.split('.')[1]));
-              saveUser({
-                name: payload.name || payload.email.split('@')[0],
-                email: payload.email,
-                picture: payload.picture || '',
-                provider: 'google'
-              });
-              toast(`Google Sign-In සාර්ථකයි ✅`);
-            } catch {
-              toast('Google login failed');
-            }
-          }
-        });
-        window.google.accounts.id.prompt();
-      } else {
-        $('#googleQuickModal').classList.add('on');
-      }
-    }
-
-    function closeGoogleQuick() {
-      $('#googleQuickModal').classList.remove('on');
-    }
-
-    function finishQuickGoogle(e) {
-      e.preventDefault();
-      const email = $('#gEmail').value.trim();
-      const rawName = $('#gName').value.trim();
-      if (!email) return;
-      const name = rawName || email.split('@')[0];
-      saveUser({ name, email, provider: 'google' });
-      closeGoogleQuick();
-      toast(`Google හරහා Sign In වුණා ✅`);
-    }
-
-    renderAuthBar();
-
-    /* ================= BOT PAIRING & SETTINGS ================= */
     const LBL = { idle: 'Offline', connecting: 'Connecting', code: 'Enter Code', open: 'Online' };
 
     function card(i, s) {
@@ -803,7 +756,7 @@
       </div>`;
     }
 
-    async function load() {
+    window.load = async function load() {
       try {
         const d = await api('/api/status');
         $('#title').textContent = (d.botName || 'Nethu') + ' AI Bot';
@@ -828,7 +781,7 @@
           e.innerHTML = card(i, s);
         }
       } catch {}
-    }
+    };
 
     async function pair(i) {
       const n = $('#n' + i).value;
@@ -926,9 +879,6 @@
 
     function openSet() { $('#ov').classList.add('on'); $('#sh').classList.add('on'); }
     function closeSet() { $('#ov').classList.remove('on'); $('#sh').classList.remove('on'); }
-
-    load();
-    setInterval(load, 3000);
   </script>
 </body>
 </html>
