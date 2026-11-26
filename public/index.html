@@ -1,75 +1,498 @@
-<!DOCTYPE html><html lang="si"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Nethu AI Bot</title>
-<style>
-:root{--bg:#0a0e1a;--card:#131a2e;--card2:#1a2340;--tx:#eef1fa;--mu:#8b95b3;--ac:#25d366;--ac2:#128c7e;--bd:#242e50;--rd:#ef4444;--am:#f5a524}
-@media(prefers-color-scheme:light){:root{--bg:#eef2f8;--card:#fff;--card2:#f3f6fb;--tx:#101828;--mu:#667085;--bd:#dde4f0}}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--tx);padding:env(safe-area-inset-top) 0 40px}
-.wrap{max-width:520px;margin:auto;padding:16px}
-.hero{display:flex;align-items:center;gap:14px;padding:18px;border-radius:20px;background:linear-gradient(135deg,var(--ac2),#0b5d52);color:#fff;margin-bottom:14px}
-.logo{width:56px;height:56px;border-radius:50%;background:#ffffff26;display:grid;place-items:center;font-size:28px;overflow:hidden;flex:none}
-.logo img{width:100%;height:100%;object-fit:cover}
-.hero h1{margin:0;font-size:20px}.hero p{margin:2px 0 0;font-size:13px;opacity:.85}.hero div.t{flex:1}
-.gear{width:42px;height:42px;border-radius:50%;border:0;background:#ffffff2e;color:#fff;font-size:20px;cursor:pointer}
-.steps{display:flex;gap:8px;margin-bottom:14px}.steps div{flex:1;background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:10px;font-size:12px;color:var(--mu);text-align:center}
-.steps b{display:block;color:var(--ac);font-size:16px;margin-bottom:2px}
-.card{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:16px;margin-bottom:12px}
-.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-.top b{font-size:16px}.pill{font-size:12px;padding:4px 10px;border-radius:99px;background:var(--card2);color:var(--mu);display:flex;align-items:center;gap:6px}
-.pill i{width:8px;height:8px;border-radius:50%;background:#888}.pill.open i{background:var(--ac);box-shadow:0 0 8px var(--ac)}.pill.connecting i,.pill.code i{background:var(--am)}
-input,textarea{width:100%;padding:13px;border-radius:12px;border:1px solid var(--bd);background:var(--card2);color:var(--tx);font-size:15px;margin-bottom:10px;font-family:inherit}
-textarea{min-height:90px;resize:vertical}input:focus,textarea:focus{outline:2px solid var(--ac);border-color:transparent}
-.btn{width:100%;padding:13px;border-radius:12px;border:0;font-size:15px;font-weight:700;cursor:pointer;background:var(--ac);color:#04210f}
-.btn.g{background:var(--card2);color:var(--tx);border:1px solid var(--bd)}.btn.d{background:var(--rd);color:#fff}
-.code{font-size:32px;font-weight:800;letter-spacing:4px;text-align:center;padding:16px;border:2px dashed var(--ac);border-radius:14px;margin:6px 0 10px;font-variant-numeric:tabular-nums}
-.num{font-size:17px;font-weight:600;margin-bottom:10px}.hint{color:var(--mu);font-size:12.5px;line-height:1.5;margin:0 0 10px}.err{color:var(--rd);font-size:13px;margin-top:8px}
-.spin{width:18px;height:18px;border:3px solid var(--bd);border-top-color:var(--ac);border-radius:50%;animation:s 1s linear infinite;display:inline-block;vertical-align:middle;margin-right:8px}@keyframes s{to{transform:rotate(360deg)}}
-.ov{position:fixed;inset:0;background:#0008;display:none;z-index:10}.ov.on{display:block}
-.sheet{position:fixed;left:0;right:0;bottom:0;max-height:90vh;overflow:auto;background:var(--bg);border-radius:24px 24px 0 0;padding:18px 16px calc(24px + env(safe-area-inset-bottom));max-width:560px;margin:auto;transform:translateY(100%);transition:.25s;z-index:11}
-.sheet.on{transform:none}.sheet h2{margin:0 0 14px;font-size:18px;display:flex;justify-content:space-between}
-.sec{font-size:13px;font-weight:700;color:var(--ac);margin:16px 0 8px}label{font-size:13px;color:var(--mu);display:block;margin-bottom:4px}
-.tg{display:flex;justify-content:space-between;align-items:center;background:var(--card);border:1px solid var(--bd);padding:12px 14px;border-radius:12px;margin-bottom:8px;font-size:14px}
-.tg input{width:46px;height:26px;margin:0;appearance:none;background:var(--bd);border-radius:99px;position:relative;cursor:pointer;padding:0;border:0}
-.tg input::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s}.tg input:checked{background:var(--ac)}.tg input:checked::after{left:23px}
-.toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%) translateY(100px);background:#111;color:#fff;padding:12px 18px;border-radius:12px;font-size:14px;transition:.3s;z-index:20}.toast.on{transform:translateX(-50%)}
-</style></head><body><div class="wrap">
-<div class="hero"><div class="logo" id="logo">🤖</div><div class="t"><h1 id="title">Nethu AI Bot</h1><p>WhatsApp Multi-Device • AI Powered</p></div><button class="gear" onclick="openSet()">⚙️</button></div>
-<div class="steps"><div><b>1</b>අංකය දාන්න</div><div><b>2</b>Code එක ගන්න</div><div><b>3</b>WhatsApp එකේ ගහන්න</div></div>
-<div id="slots"></div></div>
-<div class="ov" id="ov" onclick="closeSet()"></div>
-<div class="sheet" id="sh"><h2>⚙️ Settings <span onclick="closeSet()" style="cursor:pointer">✕</span></h2>
-<div id="lock"><label>Admin password</label><input id="pw" type="password" placeholder="••••••••"><button class="btn" onclick="unlock()">Unlock</button></div>
-<div id="form" style="display:none"></div></div>
-<div class="toast" id="toast"></div>
-<script>
-const $=s=>document.querySelector(s);let adm='';const sig={};
-const api=async(u,b,h={})=>{const r=await fetch(u,{method:b?'POST':'GET',headers:{'Content-Type':'application/json',...h},body:b?JSON.stringify(b):undefined});return r.json()};
-const toast=t=>{const e=$('#toast');e.textContent=t;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),2500)};
-const LBL={idle:'Offline',connecting:'Connecting',code:'Waiting for code',open:'Online'};
-function card(i,s){let b='';
- if(s.status==='open')b=`<div class="num">📞 +${s.number}</div><p class="hint">Bot සක්‍රියයි. "නෙතූ hi" කියලා test කරන්න.</p><button class="btn d" onclick="out(${i})">Logout</button>`;
- else if(s.status==='code')b=`<p class="hint">WhatsApp → Settings → Linked devices → Link a device → <b>Link with phone number</b> → මේ code එක ගහන්න</p><div class="code">${s.code}</div><button class="btn g" onclick="cp('${s.code}')">📋 Copy code</button>`;
- else if(s.status==='connecting')b=`<p class="hint"><span class="spin"></span>සම්බන්ධ වෙමින්...</p>`;
- else b=`<input id="n${i}" type="tel" inputmode="numeric" placeholder="94712345678"><button class="btn" onclick="pair(${i})">🔗 Pair Code ගන්න</button>`;
- return `<div class="card"><div class="top"><b>📱 Bot ${i}</b><span class="pill ${s.status}"><i></i>${LBL[s.status]}</span></div>${b}${s.error?`<div class="err">${s.error}</div>`:''}</div>`}
-async function load(){const d=await api('/api/status');$('#title').textContent=d.botName+' AI Bot';document.title=d.botName;
- if(d.logo&&!$('#logo img'))$('#logo').innerHTML=`<img src="${d.logo}" onerror="this.remove()">`;
- const w=$('#slots');for(const[i,s]of Object.entries(d.slots)){const k=JSON.stringify(s);if(sig[i]===k)continue;sig[i]=k;let e=$('#c'+i);if(!e){e=document.createElement('div');e.id='c'+i;w.appendChild(e)}e.innerHTML=card(i,s)}}
-async function pair(i){const n=$('#n'+i).value;const r=await api('/api/pair',{slot:i,number:n});if(r.error)toast(r.error);sig[i]=0;load()}
-async function out(i){if(!confirm('Logout කරන්නද?'))return;const pw=adm||prompt('Admin password');if(!pw)return;const r=await api('/api/logout',{slot:i},{'x-admin':pw});if(r.error)return toast(r.error);adm=pw;sig[i]=0;load()}
-function cp(c){navigator.clipboard?.writeText(c.replace(/-/g,''));toast('Copied ✅')}
-const SEC=[['🤖 Bot',[['botName','Bot නම'],['owner','Owner number (94...)'],['sudo','Sudo numbers (කොමාවෙන්)'],['logo','Logo URL'],['names','AI එකට කතා කරන නම් (කොමාවෙන් වෙන් කරන්න)','area']]],
-['👁️ Status',[['statusSeen','Status auto seen','b'],['statusReact','Status auto react','b'],['reactEmojis','React emojis (කොමාවෙන්)'],['statusSave','Status auto save (owner chat එකට)','b']]],
-['⚙️ General',[['autoRead','Auto read messages','b'],['autoTyping','Typing පෙන්නන්න','b'],['alwaysOnline','Always online','b'],['antiCall','Calls auto reject','b'],['dmAlways','DM එකේ නමක් නැතුවත් reply','b'],['replyToBot','Bot ගේ message එකට reply කළාම respond','b'],['prefix','Command prefix (කොමාවෙන් කීපයක් පුළුවන්: . , !)'],['mode','Mode (public / private)'],['banned','Ban කළ numbers (කොමාවෙන්)']]],
-['🧠 AI',[['provider','Provider (chatgpt / gemini)'],['geminiKey','Gemini API key (විකල්ප)'],['model','Gemini model']]],
-['🗄️ Database',[['mongoUrl','MongoDB URL (වෙනස් කළොත් restart වෙයි)']]]];
-const q=v=>String(v||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
-async function unlock(){const pw=$('#pw').value;const d=await api('/api/settings',null,{'x-admin':pw});if(d.error)return toast(d.error);adm=pw;
- $('#lock').style.display='none';const f=$('#form');f.style.display='block';
- f.innerHTML=SEC.map(([t,fs])=>`<div class="sec">${t}</div>`+fs.map(([k,l,ty])=>ty==='b'?`<div class="tg">${l}<input type="checkbox" id="f_${k}" ${d[k]==='1'?'checked':''}></div>`:
- ty==='area'?`<label>${l}</label><textarea id="f_${k}">${q(d[k])}</textarea>`:`<label>${l}</label><input id="f_${k}" value="${q(d[k])}">`).join('')).join('')+`<button class="btn" onclick="save()" style="margin-top:12px">💾 Save</button>`}
-async function save(){const b={};SEC.forEach(([,fs])=>fs.forEach(([k,,ty])=>{const e=$('#f_'+k);b[k]=ty==='b'?(e.checked?'1':'0'):e.value}));
- const r=await api('/api/settings',b,{'x-admin':adm});toast(r.restart?'Saved ✅ restart වෙනවා...':r.error||'Saved ✅');if(r.ok&&!r.restart){load();closeSet()}}
-function openSet(){$('#ov').classList.add('on');$('#sh').classList.add('on')}function closeSet(){$('#ov').classList.remove('on');$('#sh').classList.remove('on')}
-load();setInterval(load,3000);
-</script></body></html>
+<!DOCTYPE html>
+<html lang="si">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>NETHU AI V3 PRO</title>
+  <link rel="icon" type="image/jpeg" href="https://files.catbox.moe/17p3nr.jpg" />
+  <style>
+    :root {
+      --bg: #060609;
+      --bg2: #0d0d14;
+      --card: rgba(16, 16, 24, 0.88);
+      --card2: #151520;
+      --bd: rgba(255, 30, 66, 0.22);
+      --bd-soft: rgba(255, 255, 255, 0.08);
+      --red: #ff1e42;
+      --red2: #b8001f;
+      --red-glow: rgba(255, 30, 66, 0.35);
+      --green: #00e676;
+      --amber: #ffab00;
+      --tx: #f4f4f8;
+      --mu: #8e8ea8;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(circle at 85% 8%, rgba(255, 30, 66, 0.16) 0%, transparent 45%),
+        radial-gradient(circle at 10% 90%, rgba(184, 0, 31, 0.14) 0%, transparent 45%),
+        var(--bg);
+      color: var(--tx);
+      min-height: 100vh;
+      padding: calc(14px + env(safe-area-inset-top)) 14px 48px;
+    }
+    .wrap { max-width: 580px; margin: auto; }
+
+    /* Hero Header */
+    .hero {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 18px;
+      border-radius: 22px;
+      background: linear-gradient(145deg, #16090e 0%, #0d0d15 65%, #1a080d 100%);
+      border: 1px solid var(--bd);
+      box-shadow: 0 14px 40px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      margin-bottom: 14px;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--red), #ff6b81, transparent);
+    }
+    .logo-ring {
+      width: 62px; height: 62px;
+      border-radius: 50%;
+      padding: 3px;
+      background: conic-gradient(from 0deg, var(--red), #ff758c, #4a000d, var(--red));
+      box-shadow: 0 0 22px var(--red-glow);
+      flex: none;
+      animation: pulseRing 3.5s ease-in-out infinite;
+    }
+    @keyframes pulseRing {
+      0%, 100% { box-shadow: 0 0 16px var(--red-glow); }
+      50% { box-shadow: 0 0 28px rgba(255, 30, 66, 0.65); }
+    }
+    .logo {
+      width: 100%; height: 100%;
+      border-radius: 50%;
+      background: #12121a;
+      display: grid;
+      place-items: center;
+      font-size: 28px;
+      overflow: hidden;
+    }
+    .logo img { width: 100%; height: 100%; object-fit: cover; }
+    .hero-info { flex: 1; min-width: 0; }
+    .title-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .hero h1 { font-size: 19px; font-weight: 800; letter-spacing: 0.4px; }
+    .v-badge {
+      font-size: 10px; font-weight: 800; letter-spacing: 0.8px;
+      padding: 3px 8px; border-radius: 99px;
+      background: rgba(255, 30, 66, 0.18);
+      color: #ff5c77;
+      border: 1px solid rgba(255, 30, 66, 0.45);
+    }
+    .hero p { font-size: 12px; color: var(--mu); margin-top: 3px; }
+    .mini-stats { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    .m-stat {
+      font-size: 11px; color: var(--mu);
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--bd-soft);
+      padding: 3px 9px; border-radius: 8px;
+    }
+    .m-stat b { color: var(--tx); }
+
+    .gear {
+      width: 44px; height: 44px;
+      border-radius: 14px;
+      border: 1px solid var(--bd);
+      background: rgba(255, 30, 66, 0.12);
+      color: #fff;
+      font-size: 20px;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      transition: 0.25s;
+      flex: none;
+    }
+    .gear:hover { background: var(--red); transform: rotate(45deg); box-shadow: 0 0 18px var(--red-glow); }
+
+    /* Steps Bar */
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+    .steps div {
+      background: var(--card);
+      border: 1px solid var(--bd-soft);
+      border-radius: 14px;
+      padding: 10px 8px;
+      font-size: 11.5px;
+      color: var(--mu);
+      text-align: center;
+    }
+    .steps b {
+      display: inline-grid; place-items: center;
+      width: 22px; height: 22px; border-radius: 50%;
+      background: rgba(255, 30, 66, 0.16);
+      color: var(--red);
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+    .steps span { display: block; }
+
+    /* Device Cards */
+    .card {
+      background: var(--card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--bd-soft);
+      border-radius: 20px;
+      padding: 16px;
+      margin-bottom: 12px;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+      transition: border-color 0.25s, transform 0.2s;
+    }
+    .card:hover { border-color: var(--bd); }
+    .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .top b { font-size: 15.5px; display: flex; align-items: center; gap: 7px; }
+    .pill {
+      font-size: 11.5px; font-weight: 600;
+      padding: 4px 11px; border-radius: 99px;
+      background: var(--card2); color: var(--mu);
+      border: 1px solid var(--bd-soft);
+      display: flex; align-items: center; gap: 6px;
+    }
+    .pill i { width: 8px; height: 8px; border-radius: 50%; background: #666; }
+    .pill.open { color: var(--green); border-color: rgba(0, 230, 118, 0.3); background: rgba(0, 230, 118, 0.08); }
+    .pill.open i { background: var(--green); box-shadow: 0 0 8px var(--green); }
+    .pill.connecting, .pill.code { color: var(--amber); border-color: rgba(255, 171, 0, 0.3); background: rgba(255, 171, 0, 0.08); }
+    .pill.connecting i, .pill.code i { background: var(--amber); }
+
+    input, textarea {
+      width: 100%;
+      padding: 13px 14px;
+      border-radius: 13px;
+      border: 1px solid var(--bd-soft);
+      background: var(--card2);
+      color: var(--tx);
+      font-size: 14.5px;
+      margin-bottom: 10px;
+      font-family: inherit;
+      transition: 0.2s;
+    }
+    textarea { min-height: 88px; resize: vertical; }
+    input:focus, textarea:focus { outline: none; border-color: var(--red); box-shadow: 0 0 0 3px rgba(255, 30, 66, 0.16); }
+
+    .btn {
+      width: 100%; padding: 13px; border-radius: 13px; border: 0;
+      font-size: 14.5px; font-weight: 700; cursor: pointer;
+      background: linear-gradient(135deg, var(--red), var(--red2));
+      color: #fff;
+      box-shadow: 0 6px 20px var(--red-glow);
+      transition: 0.2s;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn.g { background: var(--card2); color: var(--tx); border: 1px solid var(--bd); box-shadow: none; }
+    .btn.d { background: rgba(255, 30, 66, 0.14); color: #ff5c77; border: 1px solid rgba(255, 30, 66, 0.35); box-shadow: none; }
+    .btn.d:hover { background: var(--red); color: #fff; }
+
+    .code {
+      font-size: 30px; font-weight: 900; letter-spacing: 4px; text-align: center;
+      padding: 16px;
+      background: rgba(255, 30, 66, 0.08);
+      border: 1.5px dashed var(--red);
+      color: #fff;
+      border-radius: 14px;
+      margin: 8px 0 12px;
+      text-shadow: 0 0 12px var(--red-glow);
+      font-variant-numeric: tabular-nums;
+    }
+    .num { font-size: 17px; font-weight: 700; color: var(--green); margin-bottom: 6px; }
+    .hint { color: var(--mu); font-size: 12.5px; line-height: 1.55; margin-bottom: 12px; }
+    .err { color: #ff6b81; font-size: 12.5px; margin-top: 8px; background: rgba(255, 30, 66, 0.1); padding: 8px 10px; border-radius: 10px; }
+
+    .spin {
+      width: 16px; height: 16px;
+      border: 2.5px solid rgba(255, 255, 255, 0.15);
+      border-top-color: var(--red);
+      border-radius: 50%;
+      animation: s 0.9s linear infinite;
+      display: inline-block; vertical-align: middle; margin-right: 8px;
+    }
+    @keyframes s { to { transform: rotate(360deg); } }
+
+    /* Bottom Sheet Settings */
+    .ov { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.72); backdrop-filter: blur(4px); display: none; z-index: 10; }
+    .ov.on { display: block; }
+    .sheet {
+      position: fixed; left: 0; right: 0; bottom: 0;
+      max-height: 88vh; overflow: auto;
+      background: #0c0c12;
+      border-top: 1px solid var(--bd);
+      border-radius: 26px 26px 0 0;
+      padding: 20px 16px calc(26px + env(safe-area-inset-bottom));
+      max-width: 580px; margin: auto;
+      transform: translateY(100%); transition: 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+      z-index: 11;
+      box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.8);
+    }
+    .sheet.on { transform: none; }
+    .sheet-bar { width: 42px; height: 4px; background: rgba(255, 255, 255, 0.18); border-radius: 99px; margin: 0 auto 14px; }
+    .sheet h2 { font-size: 18px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .close-x { width: 32px; height: 32px; border-radius: 50%; background: var(--card2); display: grid; place-items: center; font-size: 14px; cursor: pointer; }
+    .sec {
+      font-size: 12.5px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase;
+      color: var(--red); margin: 18px 0 10px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    label { font-size: 12.5px; color: var(--mu); display: block; margin-bottom: 5px; }
+    .tg {
+      display: flex; justify-content: space-between; align-items: center;
+      background: var(--card2); border: 1px solid var(--bd-soft);
+      padding: 12px 14px; border-radius: 13px; margin-bottom: 8px; font-size: 13.5px;
+    }
+    .tg input {
+      width: 46px; height: 26px; margin: 0; appearance: none;
+      background: #272736; border-radius: 99px; position: relative;
+      cursor: pointer; padding: 0; border: 0; transition: 0.25s;
+    }
+    .tg input::after {
+      content: ""; position: absolute; top: 3px; left: 3px;
+      width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: 0.25s;
+    }
+    .tg input:checked { background: var(--red); box-shadow: 0 0 12px var(--red-glow); }
+    .tg input:checked::after { left: 23px; }
+
+    .toast {
+      position: fixed; left: 50%; bottom: 28px;
+      transform: translateX(-50%) translateY(100px);
+      background: #181822; color: #fff;
+      border: 1px solid var(--bd);
+      padding: 11px 18px; border-radius: 13px;
+      font-size: 13.5px; font-weight: 600;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+      transition: 0.3s; z-index: 20;
+    }
+    .toast.on { transform: translateX(-50%); }
+
+    .footer { text-align: center; margin-top: 22px; font-size: 11.5px; color: var(--mu); }
+    .footer b { color: var(--red); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <div class="logo-ring">
+        <div class="logo" id="logo">
+          <img src="https://files.catbox.moe/17p3nr.jpg" onerror="this.remove();$('#logo').textContent='🤖'" alt="Bot Icon" />
+        </div>
+      </div>
+      <div class="hero-info">
+        <div class="title-row">
+          <h1 id="title">Nethu AI Bot</h1>
+          <span class="v-badge">V3 PRO</span>
+        </div>
+        <p>Multi-Device WhatsApp AI & Group Guard</p>
+        <div class="mini-stats">
+          <div class="m-stat">⏱️ <b id="up">--</b></div>
+          <div class="m-stat">📦 <b id="cmds">--</b> Cmds</div>
+        </div>
+      </div>
+      <button class="gear" onclick="openSet()" title="Admin Settings">⚙️</button>
+    </div>
+
+    <div class="steps">
+      <div><b>1</b><span>අංකය දාන්න</span></div>
+      <div><b>2</b><span>Code එක ගන්න</span></div>
+      <div><b>3</b><span>WhatsApp ලින්ක් කරන්න</span></div>
+    </div>
+
+    <div id="slots"></div>
+
+    <div class="footer">Powered by <b>HESHAN OFC</b> • MR HESHAN MD TECH WEB</div>
+  </div>
+
+  <div class="ov" id="ov" onclick="closeSet()"></div>
+  <div class="sheet" id="sh">
+    <div class="sheet-bar"></div>
+    <h2><span>⚙️ Admin Control Panel</span><span class="close-x" onclick="closeSet()">✕</span></h2>
+    <div id="lock">
+      <label>Admin Password ඇතුළත් කරන්න</label>
+      <input id="pw" type="password" placeholder="••••••••" />
+      <button class="btn" onclick="unlock()">🔓 Unlock Settings</button>
+    </div>
+    <div id="form" style="display:none"></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const $ = (s) => document.querySelector(s);
+    let adm = '';
+    const sig = {};
+
+    const api = async (u, b, h = {}) => {
+      const r = await fetch(u, {
+        method: b ? 'POST' : 'GET',
+        headers: { 'Content-Type': 'application/json', ...h },
+        body: b ? JSON.stringify(b) : undefined
+      });
+      return r.json();
+    };
+
+    const toast = (t) => {
+      const e = $('#toast');
+      e.textContent = t;
+      e.classList.add('on');
+      setTimeout(() => e.classList.remove('on'), 2600);
+    };
+
+    const LBL = { idle: 'Offline', connecting: 'Connecting', code: 'Enter Code', open: 'Online' };
+
+    function card(i, s) {
+      let b = '';
+      if (s.status === 'open') {
+        b = `<div class="num">📞 +${s.number}</div>
+             <p class="hint">Bot සක්‍රියයි. Inbox එකේ "නෙතූ hi" හෝ Group එකක <b>.set ai on</b> ගහලා test කරන්න.</p>
+             <button class="btn d" onclick="out(${i})">🔌 Logout Device</button>`;
+      } else if (s.status === 'code') {
+        b = `<p class="hint">WhatsApp → Linked devices → Link a device → <b>Link with phone number</b> → පහළ code එක ගහන්න:</p>
+             <div class="code">${s.code}</div>
+             <button class="btn g" onclick="cp('${s.code}')">📋 Copy Pairing Code</button>`;
+      } else if (s.status === 'connecting') {
+        b = `<p class="hint"><span class="spin"></span>WhatsApp Server එකට සම්බන්ධ වෙමින්...</p>`;
+      } else {
+        b = `<input id="n${i}" type="tel" inputmode="numeric" placeholder="94712345678" />
+             <button class="btn" onclick="pair(${i})">🔗 Pair Code ගන්න</button>`;
+      }
+      return `<div class="card">
+        <div class="top">
+          <b>📱 Device Slot 0${i}</b>
+          <span class="pill ${s.status}"><i></i>${LBL[s.status] || s.status}</span>
+        </div>
+        ${b}
+        ${s.error ? `<div class="err">⚠️ ${s.error}</div>` : ''}
+      </div>`;
+    }
+
+    async function load() {
+      try {
+        const d = await api('/api/status');
+        $('#title').textContent = (d.botName || 'Nethu') + ' AI Bot';
+        document.title = (d.botName || 'Nethu') + ' AI V3 PRO';
+        if (d.uptime) $('#up').textContent = d.uptime;
+        if (d.commands) $('#cmds').textContent = d.commands;
+        if (d.logo) {
+          const img = $('#logo img');
+          if (img && img.src !== d.logo) img.src = d.logo;
+        }
+        const w = $('#slots');
+        for (const [i, s] of Object.entries(d.slots || {})) {
+          const k = JSON.stringify(s);
+          if (sig[i] === k) continue;
+          sig[i] = k;
+          let e = $('#c' + i);
+          if (!e) {
+            e = document.createElement('div');
+            e.id = 'c' + i;
+            w.appendChild(e);
+          }
+          e.innerHTML = card(i, s);
+        }
+      } catch {}
+    }
+
+    async function pair(i) {
+      const n = $('#n' + i).value;
+      const r = await api('/api/pair', { slot: i, number: n });
+      if (r.error) toast(r.error);
+      sig[i] = 0;
+      load();
+    }
+
+    async function out(i) {
+      if (!confirm('Device එක Logout කරන්නද?')) return;
+      const pw = adm || prompt('Admin password');
+      if (!pw) return;
+      const r = await api('/api/logout', { slot: i }, { 'x-admin': pw });
+      if (r.error) return toast(r.error);
+      adm = pw;
+      sig[i] = 0;
+      load();
+    }
+
+    function cp(c) {
+      navigator.clipboard?.writeText(c.replace(/-/g, ''));
+      toast('Code එක Copy වුණා ✅');
+    }
+
+    const SEC = [
+      ['🤖 Bot Identity & Trigger Words', [
+        ['botName', 'Bot නම'],
+        ['owner', 'Owner Number (94...)'],
+        ['sudo', 'Developer / Sudo Numbers (කොමාවෙන්)'],
+        ['logo', 'Bot Icon URL'],
+        ['names', 'AI Trigger Words (මේ වචන තියෙනවනම් විතරයි AI වැඩ කරන්නේ)', 'area']
+      ]],
+      ['👁️ Status Automation', [
+        ['statusSeen', 'Status Auto Seen', 'b'],
+        ['statusReact', 'Status Auto React', 'b'],
+        ['reactEmojis', 'React Emojis (කොමාවෙන්)'],
+        ['statusSave', 'Status Auto Save (Owner chat එකට)', 'b']
+      ]],
+      ['🛡️ Protection & General', [
+        ['antiBan', 'Anti-Ban Safe Delay (Recommended)', 'b'],
+        ['autoRead', 'Auto Read Messages', 'b'],
+        ['autoTyping', 'Typing Indicator පෙන්නන්න', 'b'],
+        ['alwaysOnline', 'Always Online', 'b'],
+        ['antiCall', 'Auto Reject Calls', 'b'],
+        ['prefix', 'Command Prefix (කොමාවෙන් කීපයක් පුළුවන්: . , !)'],
+        ['mode', 'Mode (public / private)'],
+        ['banned', 'Ban කළ Numbers (කොමාවෙන්)']
+      ]],
+      ['🧠 AI Engine', [
+        ['provider', 'AI Provider (chatgpt / gemini)'],
+        ['geminiKey', 'Gemini API Key (විකල්ප)'],
+        ['model', 'Gemini Model']
+      ]],
+      ['🗄️ Database', [
+        ['mongoUrl', 'MongoDB URL (වෙනස් කළොත් restart වෙයි)']
+      ]]
+    ];
+
+    const q = (v) => String(v || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
+    async function unlock() {
+      const pw = $('#pw').value;
+      const d = await api('/api/settings', null, { 'x-admin': pw });
+      if (d.error) return toast(d.error);
+      adm = pw;
+      $('#lock').style.display = 'none';
+      const f = $('#form');
+      f.style.display = 'block';
+      f.innerHTML = SEC.map(([t, fs]) =>
+        `<div class="sec">${t}</div>` +
+        fs.map(([k, l, ty]) =>
+          ty === 'b'
+            ? `<div class="tg"><span>${l}</span><input type="checkbox" id="f_${k}" ${d[k] === '1' ? 'checked' : ''}></div>`
+            : ty === 'area'
+              ? `<label>${l}</label><textarea id="f_${k}">${q(d[k])}</textarea>`
+              : `<label>${l}</label><input id="f_${k}" value="${q(d[k])}">`
+        ).join('')
+      ).join('') + `<button class="btn" onclick="save()" style="margin-top:14px">💾 Save All Settings</button>`;
+    }
+
+    async function save() {
+      const b = {};
+      SEC.forEach(([, fs]) => fs.forEach(([k, , ty]) => {
+        const e = $('#f_' + k);
+        if (e) b[k] = ty === 'b' ? (e.checked ? '1' : '0') : e.value;
+      }));
+      const r = await api('/api/settings', b, { 'x-admin': adm });
+      toast(r.restart ? 'Saved ✅ Bot restart වෙනවා...' : r.error || 'Settings Saved ✅');
+      if (r.ok && !r.restart) {
+        load();
+        closeSet();
+      }
+    }
+
+    function openSet() { $('#ov').classList.add('on'); $('#sh').classList.add('on'); }
+    function closeSet() { $('#ov').classList.remove('on'); $('#sh').classList.remove('on'); }
+
+    load();
+    setInterval(load, 3000);
+  </script>
+</body>
+</html>
