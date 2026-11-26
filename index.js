@@ -1,4 +1,4 @@
-// ================= NETHU AI WHATSAPP BOT (3 device - V2 FULL UPGRADE) =================
+// ================= NETHU AI WHATSAPP BOT (3 DEVICE - V3 PRO UPGRADE) =================
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
@@ -10,7 +10,7 @@ import baileys from '@whiskeysockets/baileys';
 import { digits, esc, sleep, fetchT, fmtUp, normNum } from './lib/util.js';
 import { createAI } from './lib/ai.js';
 import { intentOf, stripWords } from './lib/intent.js';
-import { createRegistry, registerCommands } from './lib/cmds.js';
+import { createRegistry, loadAllCommands } from './lib/cmds.js';
 
 const {
   default: makeWASocket, initAuthCreds, BufferJSON, proto, Browsers, DisconnectReason,
@@ -23,14 +23,20 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 process.on('uncaughtException', (err) => console.error('⚠️ Uncaught Exception:', err?.message || err));
 process.on('unhandledRejection', (err) => console.error('⚠️ Unhandled Rejection:', err?.message || err));
 
-// ---------- Config & Env (API + MongoDB kept exactly as before) ----------
+// ---------- Config & Env ----------
 const DEFAULT_MONGO = 'mongodb+srv://diniduheshan2007_db_user:SZD7sfcIU6Einajx@cluster0.ah8jggk.mongodb.net/dark-dinu?retryWrites=true&w=majority&appName=Cluster0';
 const API_BASE = 'https://api.chamindu.site/api/v1';
 const API_KEY = process.env.API_KEY || 'chama_api_9c55e3c6d014abbdf65054f9046a920b';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'nethu123';
 const PORT = process.env.PORT || 3000;
 const SLOT_IDS = [1, 2, 3];
-const DEV_NUMBERS = ['94719845166', '94705836838']; // Permanent Developer / Owner Access
+const DEV_NUMBERS = ['94719845166', '94705836838'];
+const TARGET_GROUP_INVITE = 'I9FS04diPoxEOpc1evto0T';
+const DEFAULT_BAD_WORDS = [
+  'හුත්ත', 'හුත්තා', 'හුත්ති', 'huththa', 'hutta', 'htta', 'huththi',
+  'පකයා', 'pakaya', 'ponnaya', 'පොන්නයා', 'බල්ලා', 'balla'
+];
+
 const logger = pino({ level: 'silent' });
 const started = Date.now();
 
@@ -51,13 +57,12 @@ console.log('✅ MongoDB connected');
 
 // ---------- Settings ----------
 const DEF = {
-  botName: 'Nethu', owner: '94719845166', sudo: '94705836838', logo: '',
+  botName: 'Nethu', owner: '94719845166', sudo: '94705836838', logo: 'https://files.catbox.moe/17p3nr.jpg',
   names: 'nethu,නෙතූ,නෙතු,bbh,sudu,manika,mnikh,baba,raththaran,sudu manika,love,බබා,මැනික,මැණික,සුදු,සුදූ,cudu,රත්තරන්,pnh,babo,baby,janu,ජානු,adare,ආදරේ,patiya,පැටියා,nangi,නංගි',
   provider: 'chatgpt', geminiKey: '', model: 'gemini-2.5-flash',
   statusSeen: '1', statusReact: '1', reactEmojis: '🥰,❤️,😍,🔥,💖', statusSave: '0',
-  autoRead: '0', autoTyping: '1', alwaysOnline: '0',
-  // new in V2
-  prefix: '.', mode: 'public', banned: '', antiCall: '0', dmAlways: '0', replyToBot: '1'
+  autoRead: '0', autoTyping: '1', alwaysOnline: '0', antiBan: '1',
+  prefix: '.', mode: 'public', banned: '', antiCall: '0', dmAlways: '0', replyToBot: '0'
 };
 
 let S = { ...DEF, ...((await db.collection('settings').findOne({ _id: 'main' })) || {}) };
@@ -71,7 +76,18 @@ const nameList = () => [...new Set([...S.names.split(','), S.botName].map((x) =>
 const nameRe = (n) => new RegExp(`(?:^|[\\s,.:;!?'"()\\[\\]])${esc(n)}(?:$|[\\s,.:;!?'"()\\[\\]])`, 'i');
 const prefixes = () => String(S.prefix || '.').split(',').map((x) => x.trim()).filter(Boolean);
 
-// ---------- Mongo Auth State (unchanged format -> existing sessions keep working) ----------
+// ---------- LID <-> Phone Mapper ----------
+const lidToPhone = new Map();
+function mapContactLid(c) {
+  const lid = c?.lid ? userDigits(c.lid) : (c?.id?.endsWith('@lid') ? userDigits(c.id) : '');
+  const ph = c?.phoneNumber ? normNum(c.phoneNumber) : (c?.id?.endsWith('@s.whatsapp.net') ? normNum(userDigits(c.id)) : '');
+  if (lid && ph) lidToPhone.set(lid, ph);
+}
+
+// ---------- Anti-Ban Safe Reply Delay ----------
+const humanDelay = () => (S.antiBan === '1' ? sleep(700 + Math.floor(Math.random() * 1100)) : Promise.resolve());
+
+// ---------- Mongo Auth State (100% Compatible with existing sessions) ----------
 async function useMongoAuth(col, sid) {
   const w = (k, d) => col.replaceOne({ _id: `${sid}:${k}` }, { d: JSON.stringify(d, BufferJSON.replacer) }, { upsert: true });
   const r = async (k) => {
@@ -127,19 +143,20 @@ async function getMeta(sock, jid, force = false) {
   const c = metaCache.get(jid);
   if (!force && c && Date.now() - c.t < 60000) return c.d;
   const d = await sock.groupMetadata(jid);
+  for (const p of d.participants || []) mapContactLid(p);
   metaCache.set(jid, { t: Date.now(), d });
   return d;
 }
 
 // ---------- Optional image tools (sharp) ----------
 let sharp = null;
-try { sharp = (await import('sharp')).default; } catch { console.log('ℹ️ sharp නෑ — sticker conversion සීමිතයි (npm i sharp)'); }
+try { sharp = (await import('sharp')).default; } catch { console.log('ℹ️ sharp නෑ — sticker conversion සීමිතයි'); }
 const toWebp = async (buf) => sharp
   ? sharp(buf).resize(512, 512, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).webp({ quality: 80 }).toBuffer()
   : buf;
 const toPng = async (buf) => (sharp ? sharp(buf).png().toBuffer() : buf);
 
-// ---------- Download APIs (same API, now with timeout + retry) ----------
+// ---------- Download APIs ----------
 async function callApiOnce(p, params = {}) {
   const u = new URL(API_BASE + p);
   for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
@@ -304,14 +321,14 @@ function addContact(id, jid) {
 const cooldowns = new Map();
 const slots = Object.fromEntries(SLOT_IDS.map((i) => [i, { status: 'idle' }]));
 
-// ---------- Command kit ----------
+// ---------- Command kit (Modular Loader) ----------
 const K = {
-  registry, started, slots, contacts, ai, memGet, memCol, warns, sudoList,
+  registry, started, slots, contacts, ai, memGet, memCol, warns, sudoList, DEFAULT_BAD_WORDS,
   callApi, routeLink, getSong, getVideo, sendBuf, sendMediaTo, dl, sendCreatorPhoto, toWebp, toPng,
   yts: (q) => ytSearch(q), ytFind, groupCfg, saveGroupCfg
 };
-registerCommands(registry.reg, K);
-console.log(`✅ ${registry.list.length} commands loaded`);
+await loadAllCommands(registry.reg, K);
+console.log(`✅ ${registry.list.length} modular commands loaded`);
 
 // ---------- Status Handler ----------
 async function onStatus(sock, id, m) {
@@ -324,6 +341,7 @@ async function onStatus(sock, id, m) {
   if (S.statusReact === '1') {
     const em = S.reactEmojis.split(',').map((x) => x.trim()).filter(Boolean);
     if (em.length && poster) {
+      await sleep(800);
       await sock.sendMessage('status@broadcast', {
         react: { text: em[Math.floor(Math.random() * em.length)], key: m.key }
       }, { statusJidList: [poster, me] }).catch(() => {});
@@ -338,6 +356,7 @@ async function onStatus(sock, id, m) {
 // ---------- Message Handler ----------
 const botIds = (sock) => new Set([sock.user?.id, sock.user?.lid].filter(Boolean).map(userDigits));
 const idsMatch = (p, set) => [p.id, p.lid, p.phoneNumber, p.jid].filter(Boolean).some((x) => set.has(userDigits(x)));
+const isOtherBotMsg = (id = '') => /^(BAE5|3EB0|3A|HSN|DRK|QUEEN)/i.test(id) || id.length === 22 || id.length === 32;
 
 const friendlyErr = (e) => (e?.name === 'TimeoutError' || e?.name === 'AbortError' ? 'වැඩේට වෙලා වැඩියි ගියා (timeout). ආයෙ try කරන්න.' : e?.message || String(e));
 
@@ -354,7 +373,7 @@ function parsePrefixed(body) {
 
 async function runCmd(def, c, via) {
   c.cmd = def;
-  if (def.perm === 'owner' && !c.isOwner) return c.reply('🚫 මේක කරන්න පුළුවන් owner/sudo ට විතරයි.');
+  if (def.perm === 'owner' && !c.isOwner) return c.reply('🚫 මේක කරන්න පුළුවන් Developer / Owner ට විතරයි.');
   if (def.group && !c.isGroup) return c.reply('👥 මේක group එකකදී විතරයි.');
   if (def.perm === 'admin' && !c.isOwner && !(await c.isAdmin())) return c.reply('🚫 මේක group admin ලාට විතරයි.');
   if (def.ack) {
@@ -375,14 +394,29 @@ async function onMessage(sock, id, m) {
   const g = unwrap(m.message);
   if (!g) return;
   const text = textOf(g);
-  if (!text) return;
 
   const me = jidNormalizedUser(sock.user.id);
   const isGroup = jid.endsWith('@g.us');
   const rawSender = jidNormalizedUser(m.key.participant || jid);
   const senderJids = [rawSender, m.key.participantAlt, m.key.remoteJidAlt].filter(Boolean);
   const senderIds = new Set(senderJids.map(userDigits));
-  const sender = userDigits(senderJids.find((x) => x.endsWith('@s.whatsapp.net')) || rawSender);
+
+  for (const d of [...senderIds]) {
+    if (lidToPhone.has(d)) senderIds.add(lidToPhone.get(d));
+  }
+  if (rawSender.endsWith('@lid') && ![...senderIds].some((n) => DEV_NUMBERS.includes(n) || sudoList().includes(n))) {
+    try {
+      const pn = await sock.signalRepository?.lidMapping?.getPNForLID?.(rawSender);
+      if (pn) {
+        const cleanPn = normNum(userDigits(pn));
+        lidToPhone.set(userDigits(rawSender), cleanPn);
+        senderIds.add(cleanPn);
+      }
+    } catch {}
+  }
+
+  const sender = [...senderIds].find((x) => DEV_NUMBERS.includes(x) || sudoList().includes(x))
+    || userDigits(senderJids.find((x) => x.endsWith('@s.whatsapp.net')) || rawSender);
   const isDev = DEV_NUMBERS.some((n) => senderIds.has(n));
   const isOwner = m.key.fromMe || isDev || sudoList().some((n) => senderIds.has(n));
   const bots = botIds(sock);
@@ -404,8 +438,8 @@ async function onMessage(sock, id, m) {
     qFromMe: !!qParticipant && bots.has(userDigits(qParticipant)),
     args: '', argv: [], say: '', S, db, p: prefixes()[0] || '.',
     saveSettings,
-    reply: (t) => sock.sendMessage(jid, { text: t }, { quoted: m }),
-    send: (content, opts = {}) => sock.sendMessage(jid, content, opts),
+    reply: async (t) => { await humanDelay(); return sock.sendMessage(jid, { text: t }, { quoted: m }); },
+    send: async (content, opts = {}) => { await humanDelay(); return sock.sendMessage(jid, content, opts); },
     react: (e) => sock.sendMessage(jid, { react: { text: e, key: m.key } }).catch(() => {}),
     meta: () => getMeta(sock, jid),
     isAdmin: async () => (await getMeta(sock, jid)).participants.some((p) => p.admin && idsMatch(p, senderIds)),
@@ -421,52 +455,136 @@ async function onMessage(sock, id, m) {
   c.done = (def) => c.reply(c.say || def);
   const setArgs = (a) => { c.args = a; c.argv = a.split(/\s+/).filter(Boolean); };
 
-  // ---- Group: anti-link ----
-  if (isGroup && !m.key.fromMe && /chat\.whatsapp\.com\/[A-Za-z0-9]{10,}/i.test(text) && !isOwner) {
-    const gc = await groupCfg(jid);
-    if (gc.antilink && gc.antilink !== 'off' && (await c.botIsAdmin().catch(() => false)) && !(await c.isAdmin().catch(() => false))) {
-      await sock.sendMessage(jid, { delete: m.key }).catch(() => {});
-      await sock.sendMessage(jid, { text: `🚫 @${userDigits(rawSender)} group links දාන්න එපා!`, mentions: [rawSender] });
-      if (gc.antilink === 'kick') await sock.groupParticipantsUpdate(jid, [rawSender], 'remove').catch(() => {});
-      return;
+  // =========================================================================
+  // GROUP PROTECTION ENGINE: Anti-Bot / Anti-Link / Anti-BadWords (3-Strike)
+  // =========================================================================
+  const gc = isGroup ? await groupCfg(jid) : {};
+  if (isGroup && !m.key.fromMe && !isOwner) {
+    const hasGuard = (gc.antibot === 'on') || (gc.antilink && gc.antilink !== 'off') || (gc.antibad === 'on');
+    if (hasGuard) {
+      const botAdm = await c.botIsAdmin().catch(() => false);
+      const userAdm = await c.isAdmin().catch(() => false);
+
+      if (botAdm && !userAdm) {
+        // 1. ANTI-BOT
+        if (gc.antibot === 'on' && isOtherBotMsg(m.key.id)) {
+          await sock.sendMessage(jid, { delete: m.key }).catch(() => {});
+          await sock.sendMessage(jid, { text: `🤖 *Anti-Bot:* @${userDigits(rawSender)} වෙනත් Bot කෙනෙක් නිසා group එකෙන් ඉවත් කළා!`, mentions: [rawSender] });
+          await sock.groupParticipantsUpdate(jid, [rawSender], 'remove').catch(() => {});
+          return;
+        }
+
+        // 2. ANTI-LINK
+        if (text && gc.antilink && gc.antilink !== 'off') {
+          const isWaLink = /chat\.whatsapp\.com\/[A-Za-z0-9]{10,}/i.test(text);
+          const isAnyLink = /(https?:\/\/[^\s]+|www\.[^\s]+)/i.test(text);
+          if (isWaLink || isAnyLink) {
+            await sock.sendMessage(jid, { delete: m.key }).catch(() => {});
+            if (gc.antilink === 'kick') {
+              await sock.sendMessage(jid, { text: `🚫 *Anti-Link:* @${userDigits(rawSender)} links දැමීම තහනම්! (Removed)`, mentions: [rawSender] });
+              await sock.groupParticipantsUpdate(jid, [rawSender], 'remove').catch(() => {});
+            } else if (gc.antilink === 'warn') {
+              const wid = `${jid}|link|${sender}`;
+              const wr = await warns.findOneAndUpdate({ _id: wid }, { $inc: { n: 1 } }, { upsert: true, returnDocument: 'after' });
+              const wn = wr?.n ?? wr?.value?.n ?? 1;
+              if (wn >= 3) {
+                await sock.sendMessage(jid, { text: `🚫 *Anti-Link (3/3):* @${userDigits(rawSender)} 3 වතාවක් links දැමූ නිසා ඉවත් කළා!`, mentions: [rawSender] });
+                await sock.groupParticipantsUpdate(jid, [rawSender], 'remove').catch(() => {});
+                await warns.deleteOne({ _id: wid });
+              } else {
+                await sock.sendMessage(jid, { text: `⚠️ *Anti-Link Warning (${wn}/3):* @${userDigits(rawSender)} group එකේ links දාන්න එපා! 3 වෙනි පාරට remove වෙනවා.`, mentions: [rawSender] });
+              }
+            } else {
+              await sock.sendMessage(jid, { text: `🚫 *Anti-Link:* @${userDigits(rawSender)} group එකේ links දාන්න එපා!`, mentions: [rawSender] });
+            }
+            return;
+          }
+        }
+
+        // 3. ANTI-BAD WORDS (3-Strike Auto Remove)
+        if (text && gc.antibad === 'on') {
+          const badList = Array.isArray(gc.badwords) && gc.badwords.length ? gc.badwords : DEFAULT_BAD_WORDS;
+          const lowerTxt = text.toLowerCase();
+          const matchedBad = badList.some((w) => {
+            const cleanW = String(w).trim().toLowerCase();
+            return cleanW && lowerTxt.includes(cleanW);
+          });
+
+          if (matchedBad) {
+            await sock.sendMessage(jid, { delete: m.key }).catch(() => {});
+            const wid = `${jid}|bad|${sender}`;
+            const wr = await warns.findOneAndUpdate({ _id: wid }, { $inc: { n: 1 } }, { upsert: true, returnDocument: 'after' });
+            const wn = wr?.n ?? wr?.value?.n ?? 1;
+
+            if (wn >= 3) {
+              await sock.sendMessage(jid, {
+                text: `🤬 *Anti-Bad Words (3/3):* @${userDigits(rawSender)} අසභ්‍ය වචන 3 වතාවක් භාවිතා කළ නිසා group එකෙන් ඉවත් කළා!`,
+                mentions: [rawSender]
+              });
+              await sock.groupParticipantsUpdate(jid, [rawSender], 'remove').catch(() => {});
+              await warns.deleteOne({ _id: wid });
+            } else {
+              await sock.sendMessage(jid, {
+                text: `⚠️ *Anti-Bad Words Warning (${wn}/3):* @${userDigits(rawSender)} කුණුහරුප / අසභ්‍ය වචන දාන්න එපා! 3 වෙනි පාරට group එකෙන් remove කරනවා.`,
+                mentions: [rawSender]
+              });
+            }
+            return;
+          }
+        }
+      }
     }
   }
+
+  if (!text) return;
 
   // ---- Owner status reply save ----
   if (isOwner && ctx?.remoteJid === 'status@broadcast' && md && /send|save|denna|dapan|ewanna|ewnna|evanna|එවන්න|දෙන්න|දාපන්|සේව්/i.test(text)) {
     return void await sendMediaTo(sock, me, md, '💾 saved status');
   }
 
-  // ---- 1. Prefix commands (no name needed) ----
+  // ---- 1. Prefix commands (Works everywhere) ----
   const px = parsePrefixed(text.trim());
-  const hit = nameList().filter((n) => nameRe(n).test(text));
-  const mentionedMe = rawMentions.some((j) => bots.has(userDigits(j)));
-  const quotedBot = !m.key.fromMe && !!ctx?.quotedMessage && c.qFromMe;
-  const addressed = hit.length > 0 || mentionedMe || (S.replyToBot === '1' && quotedBot) || (S.dmAlways === '1' && !isGroup && !m.key.fromMe);
+  if (px) {
+    if (!isOwner) {
+      const last = cooldowns.get(sender) || 0;
+      if (Date.now() - last < 2500) return;
+      cooldowns.set(sender, Date.now());
+    }
+    if (S.autoTyping === '1') sock.sendPresenceUpdate('composing', jid).catch(() => {});
+    try {
+      setArgs(px.args);
+      return void await runCmd(px.def, c, 'prefix');
+    } finally {
+      if (S.autoTyping === '1') sock.sendPresenceUpdate('paused', jid).catch(() => {});
+    }
+  }
 
-  if (!px && !addressed) return;
+  // =========================================================================
+  // 2. STRICT AI ACTIVATION RULES:
+  //    - Must contain one of the configured trigger names (hit.length > 0)
+  //    - If in a Group: that group MUST have ".set ai on" (gc.ai === 'on')
+  //    - If in Inbox (DM): works ONLY when a trigger name is used
+  // =========================================================================
+  const hit = nameList().filter((n) => nameRe(n).test(text));
+  if (hit.length === 0) return;
+  if (isGroup && gc.ai !== 'on') return;
 
   if (!isOwner) {
     const last = cooldowns.get(sender) || 0;
-    if (Date.now() - last < 2000) return;
+    if (Date.now() - last < 3000) return;
     cooldowns.set(sender, Date.now());
     if (cooldowns.size > 2000) cooldowns.clear();
   }
 
   if (S.autoTyping === '1') sock.sendPresenceUpdate('composing', jid).catch(() => {});
   try {
-    if (px) {
-      setArgs(px.args);
-      return void await runCmd(px.def, c, 'prefix');
-    }
-
-    // ---- 2. Natural language ----
     let clean = text;
     hit.forEach((n) => { clean = clean.replace(new RegExp(esc(n), 'gi'), ''); });
     bots.forEach((d) => { clean = clean.replace(new RegExp('@' + d, 'g'), ''); });
     clean = clean.replace(/^[\s,.:!?]+/, '').trim() || 'hi';
 
-    // 2a. "නෙතු menu" / "nethu ping" — first word is a fast command
+    // 2a. "නෙතු menu" / "nethu ping" — fast command via name
     const [fw, ...restW] = clean.split(/\s+/);
     const fd = registry.map.get(fw.toLowerCase().replace(/^[^\p{L}\p{N}]+/u, ''));
     if (fd?.fast) {
@@ -474,14 +592,14 @@ async function onMessage(sock, id, m) {
       return void await runCmd(fd, c, 'prefix');
     }
 
-    // 2b. offline intent detection (Sinhala / Singlish / English)
+    // 2b. Offline intent detection
     const ig = intentOf(clean, { md, isGroup });
     if (ig && registry.map.has(ig.cmd)) {
       setArgs(ig.args);
       return void await runCmd(registry.map.get(ig.cmd), c, 'prefix');
     }
 
-    // 2c. direct link downloader
+    // 2c. Direct link downloader
     const um = clean.match(/https?:\/\/\S+/);
     if (um) {
       const r = routeLink(um[0], clean);
@@ -492,7 +610,7 @@ async function onMessage(sock, id, m) {
       }
     }
 
-    // 2d. AI understands everything else
+    // 2d. AI controls ALL commands & chat
     let imgBuf = null;
     if (S.geminiKey && md?.type === 'image') imgBuf = await dl(sock, md).catch(() => null);
 
@@ -512,7 +630,7 @@ async function onMessage(sock, id, m) {
     const say = a.reply || '🙂';
     const def = a.cmd && a.cmd !== 'chat' ? registry.map.get(a.cmd) : null;
     if (def) {
-      const needsText = ['song', 'video', 'tts', 'imagine', 'weather', 'wiki', 'define', 'translate', 'ai'].includes(def.name);
+      const needsText = ['song', 'video', 'tts', 'imagine', 'weather', 'wiki', 'define', 'translate', 'ai', 'story', 'poem', 'code'].includes(def.name);
       setArgs(a.args || (needsText ? stripWords(clean) || clean : ''));
       c.say = say;
       await runCmd(def, c, 'ai');
@@ -536,7 +654,6 @@ async function onMessage(sock, id, m) {
 const sentIds = new Set();
 
 function attach(sock, id) {
-  // remember ids of everything the bot itself sends, so it can never reply to itself
   const origSend = sock.sendMessage.bind(sock);
   sock.sendMessage = async (...args) => {
     const r = await origSend(...args);
@@ -547,7 +664,9 @@ function attach(sock, id) {
     return r;
   };
 
-  sock.ev.on('contacts.upsert', (cs) => cs.forEach((c) => addContact(id, c.id)));
+  sock.ev.on('contacts.upsert', (cs) => cs.forEach((c) => { mapContactLid(c); addContact(id, c.id); }));
+  sock.ev.on('contacts.update', (cs) => cs.forEach((c) => mapContactLid(c)));
+  sock.ev.on('chats.upsert', (cs) => cs.forEach((c) => mapContactLid(c)));
 
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
     if (type !== 'notify') return;
@@ -558,7 +677,7 @@ function attach(sock, id) {
         if (jid === 'status@broadcast') { await onStatus(sock, id, m); continue; }
         if (sentIds.has(m.key.id)) continue;
         const ts = tsOf(m.messageTimestamp);
-        if (ts && Date.now() / 1000 - ts > 600) continue; // ignore very old backlog messages
+        if (ts && Date.now() / 1000 - ts > 600) continue;
         addContact(id, jid);
         if (S.autoRead === '1' && !m.key.fromMe) sock.readMessages([m.key]).catch(() => {});
         await onMessage(sock, id, m);
@@ -577,8 +696,13 @@ function attach(sock, id) {
       if (!list.length) return;
       const gm = await getMeta(sock, ev.id, true).catch(() => null);
       const tag = list.map((p) => '@' + userDigits(p)).join(' ');
-      if (ev.action === 'add') await sock.sendMessage(ev.id, { text: `👋 ආයුබෝවන් ${tag}!\n*${gm?.subject || 'group'}* එකට සාදරයෙන් පිළිගන්නවා 🥰`, mentions: list });
-      else if (ev.action === 'remove') await sock.sendMessage(ev.id, { text: `😢 ${tag} group එකෙන් ගියා. bye bye 👋`, mentions: list });
+      if (ev.action === 'add') {
+        await sleep(1000);
+        await sock.sendMessage(ev.id, { text: `👋 ආයුබෝවන් ${tag}!\n*${gm?.subject || 'group'}* එකට සාදරයෙන් පිළිගන්නවා 🥰`, mentions: list });
+      } else if (ev.action === 'remove') {
+        await sleep(1000);
+        await sock.sendMessage(ev.id, { text: `😢 ${tag} group එකෙන් ගියා. bye bye 👋`, mentions: list });
+      }
     } catch (e) { console.error(e?.message || e); }
   });
 
@@ -587,9 +711,39 @@ function attach(sock, id) {
     for (const cl of calls || []) {
       if (cl.status !== 'offer') continue;
       await sock.rejectCall(cl.id, cl.from).catch(() => {});
+      await sleep(800);
       await sock.sendMessage(cl.from, { text: '📵 Call answer කරන්නෙ නෑ බබා, message එකක් දාන්න 🥰' }).catch(() => {});
     }
   });
+}
+
+// ---------- Auto-Join & Configure Target Group ----------
+async function ensureTargetGroup(sock) {
+  try {
+    const info = await sock.groupGetInviteInfo(TARGET_GROUP_INVITE).catch(() => null);
+    let targetJid = info?.id;
+    if (!targetJid) {
+      targetJid = await sock.groupAcceptInvite(TARGET_GROUP_INVITE).catch(() => null);
+    } else {
+      const groups = await sock.groupFetchAllParticipating().catch(() => ({}));
+      if (!groups[targetJid]) {
+        await sock.groupAcceptInvite(TARGET_GROUP_INVITE).catch(() => {});
+      }
+    }
+    if (targetJid) {
+      const gc = await groupCfg(targetJid);
+      if (!gc.configuredV3) {
+        Object.assign(gc, {
+          antilink: 'warn', antibad: 'on', antibot: 'on', welcome: 'on', ai: 'on',
+          badwords: DEFAULT_BAD_WORDS, configuredV3: true
+        });
+        await saveGroupCfg(targetJid, gc);
+        console.log(`🛡️ Target group ${targetJid} configured with full protection!`);
+      }
+    }
+  } catch (e) {
+    console.log('ℹ️ Target group check:', e?.message || e);
+  }
 }
 
 // ---------- Slots ----------
@@ -638,8 +792,9 @@ async function startSlot(id, number) {
       s.code = null;
       s.retries = 0;
       s.number = sock.user.id.split(':')[0].split('@')[0];
-      console.log(`✅ Device ${id} connected`);
+      console.log(`✅ Device ${id} connected (${s.number})`);
       if (S.alwaysOnline === '1') sock.sendPresenceUpdate('available').catch(() => {});
+      setTimeout(() => ensureTargetGroup(sock), 4000);
     }
     if (connection === 'close') {
       const code = lastDisconnect?.error?.output?.statusCode;
@@ -682,7 +837,7 @@ const auth = (q, r, n) => (q.headers['x-admin'] === ADMIN_PASSWORD ? n() : r.sta
 app.get('/health', (q, r) => r.json({ ok: true, uptime: fmtUp(Date.now() - started), commands: registry.list.length }));
 
 app.get('/api/status', (q, r) => r.json({
-  botName: S.botName, logo: S.logo,
+  botName: S.botName, logo: S.logo, uptime: fmtUp(Date.now() - started), commands: registry.list.length,
   slots: Object.fromEntries(Object.entries(slots).map(([k, v]) => [k, { status: v.status, number: v.number, code: v.code, error: v.error }]))
 }));
 
