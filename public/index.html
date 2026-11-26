@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>NETHU AI V3 PRO</title>
   <link rel="icon" type="image/jpeg" href="https://files.catbox.moe/17p3nr.jpg" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     :root {
       --bg: #060609;
@@ -30,9 +31,126 @@
         var(--bg);
       color: var(--tx);
       min-height: 100vh;
-      padding: calc(14px + env(safe-area-inset-top)) 14px 48px;
+      padding: calc(12px + env(safe-area-inset-top)) 14px 48px;
     }
     .wrap { max-width: 580px; margin: auto; }
+
+    /* Top Auth Bar */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+      padding: 8px 12px;
+      border-radius: 16px;
+      background: rgba(13, 13, 20, 0.85);
+      border: 1px solid var(--bd-soft);
+      backdrop-filter: blur(12px);
+    }
+    .brand-mini {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12.5px;
+      font-weight: 800;
+      letter-spacing: 0.4px;
+    }
+    .brand-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--red);
+      box-shadow: 0 0 10px var(--red);
+    }
+    .auth-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-google-mini {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 12px;
+      border-radius: 99px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: #ffffff;
+      color: #111827;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: 0.2s;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    }
+    .btn-google-mini:active { transform: scale(0.96); }
+    .btn-signin-mini {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 13px;
+      border-radius: 99px;
+      border: 1px solid rgba(255, 30, 66, 0.45);
+      background: linear-gradient(135deg, var(--red), var(--red2));
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 14px var(--red-glow);
+      transition: 0.2s;
+    }
+    .btn-signin-mini:active { transform: scale(0.96); }
+
+    /* Logged In User Pill */
+    .user-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 10px 4px 5px;
+      border-radius: 99px;
+      background: rgba(255, 30, 66, 0.12);
+      border: 1px solid rgba(255, 30, 66, 0.35);
+    }
+    .user-av {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--red), var(--red2));
+      color: #fff;
+      font-size: 12px;
+      font-weight: 800;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+    }
+    .user-av img { width: 100%; height: 100%; object-fit: cover; }
+    .user-name {
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+      max-width: 110px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .g-tag {
+      font-size: 9px;
+      font-weight: 800;
+      padding: 2px 5px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.12);
+      color: #93c5fd;
+    }
+    .btn-out-mini {
+      padding: 6px 10px;
+      border-radius: 99px;
+      border: 1px solid var(--bd-soft);
+      background: var(--card2);
+      color: #ff6b81;
+      font-size: 11.5px;
+      font-weight: 700;
+      cursor: pointer;
+    }
 
     /* Hero Header */
     .hero {
@@ -213,6 +331,107 @@
     }
     @keyframes s { to { transform: rotate(360deg); } }
 
+    /* Auth Modal */
+    .auth-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(8px);
+      display: none;
+      place-items: center;
+      padding: 16px;
+      z-index: 30;
+    }
+    .auth-modal.on { display: grid; }
+    .auth-box {
+      width: 100%;
+      max-width: 400px;
+      background: linear-gradient(165deg, #14141f 0%, #0b0b12 100%);
+      border: 1px solid var(--bd);
+      border-radius: 24px;
+      padding: 20px 18px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.88), 0 0 30px rgba(255, 30, 66, 0.15);
+      animation: popIn 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes popIn {
+      from { opacity: 0; transform: scale(0.93) translateY(10px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .auth-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .auth-head h3 {
+      font-size: 17px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .auth-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      background: var(--card2);
+      padding: 4px;
+      border-radius: 13px;
+      border: 1px solid var(--bd-soft);
+      margin-bottom: 14px;
+    }
+    .auth-tab {
+      padding: 9px;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+      color: var(--mu);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .auth-tab.active {
+      background: linear-gradient(135deg, var(--red), var(--red2));
+      color: #fff;
+      box-shadow: 0 4px 14px var(--red-glow);
+    }
+    .btn-google-full {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 13px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: #ffffff;
+      color: #111827;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: 0.2s;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    }
+    .btn-google-full:active { transform: scale(0.98); }
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 14px 0;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--mu);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+    .divider::before, .divider::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--bd-soft);
+    }
+
     /* Bottom Sheet Settings */
     .ov { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.72); backdrop-filter: blur(4px); display: none; z-index: 10; }
     .ov.on { display: block; }
@@ -263,7 +482,7 @@
       padding: 11px 18px; border-radius: 13px;
       font-size: 13.5px; font-weight: 600;
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
-      transition: 0.3s; z-index: 20;
+      transition: 0.3s; z-index: 40;
     }
     .toast.on { transform: translateX(-50%); }
 
@@ -273,6 +492,27 @@
 </head>
 <body>
   <div class="wrap">
+    <!-- Top Account Bar (Google Login + Sign In) -->
+    <div class="topbar">
+      <div class="brand-mini">
+        <span class="brand-dot"></span>
+        <span>HESHAN OFC</span>
+      </div>
+
+      <div class="auth-actions" id="authBar">
+        <button class="btn-google-mini" onclick="startGoogleLogin()">
+          <svg width="14" height="14" viewBox="0 0 48 48">
+            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+          </svg>
+          <span>Google</span>
+        </button>
+        <button class="btn-signin-mini" onclick="openAuth('login')">Sign In</button>
+      </div>
+    </div>
+
     <div class="hero">
       <div class="logo-ring">
         <div class="logo" id="logo">
@@ -304,6 +544,71 @@
     <div class="footer">Powered by <b>HESHAN OFC</b> • MR HESHAN MD TECH WEB</div>
   </div>
 
+  <!-- Sign In / Sign Up & Google Modal -->
+  <div class="auth-modal" id="authModal" onclick="closeAuth()">
+    <div class="auth-box" onclick="event.stopPropagation()">
+      <div class="auth-head">
+        <h3>🔐 Account Access</h3>
+        <span class="close-x" onclick="closeAuth()">✕</span>
+      </div>
+
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Sign In</button>
+        <button class="auth-tab" id="tabSignup" onclick="switchAuthTab('signup')">Create Account</button>
+      </div>
+
+      <button type="button" class="btn-google-full" onclick="startGoogleLogin()">
+        <svg width="18" height="18" viewBox="0 0 48 48">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        </svg>
+        <span>Continue with Google</span>
+      </button>
+
+      <div class="divider">or with email</div>
+
+      <form id="authForm" onsubmit="submitEmailAuth(event)">
+        <div id="nameWrap" style="display:none">
+          <label>ඔබේ නම (Full Name)</label>
+          <input id="authName" type="text" placeholder="Dinidu Heshan" />
+        </div>
+        <label>Email Address</label>
+        <input id="authEmail" type="email" placeholder="example@gmail.com" required />
+        <label>Password</label>
+        <input id="authPass" type="password" placeholder="••••••••" required />
+        <button type="submit" class="btn" id="authSubmitBtn">Sign In</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Google Quick Email Prompt Modal (Used if Google Client ID isn't configured) -->
+  <div class="auth-modal" id="googleQuickModal" onclick="closeGoogleQuick()">
+    <div class="auth-box" onclick="event.stopPropagation()">
+      <div class="auth-head">
+        <h3>
+          <svg width="18" height="18" viewBox="0 0 48 48">
+            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+          </svg>
+          <span>Google Account Sign In</span>
+        </h3>
+        <span class="close-x" onclick="closeGoogleQuick()">✕</span>
+      </div>
+      <p class="hint">ඔබේ Gmail ලිපිනය ඇතුළත් කර Google හරහා ක්ෂණිකව සම්බන්ධ වන්න:</p>
+      <form onsubmit="finishQuickGoogle(event)">
+        <label>Gmail Address</label>
+        <input id="gEmail" type="email" placeholder="yourname@gmail.com" required />
+        <label>Display Name (විකල්ප)</label>
+        <input id="gName" type="text" placeholder="Heshan" />
+        <button type="submit" class="btn-google-full">Continue with Google ✓</button>
+      </form>
+    </div>
+  </div>
+
   <div class="ov" id="ov" onclick="closeSet()"></div>
   <div class="sheet" id="sh">
     <div class="sheet-bar"></div>
@@ -323,6 +628,9 @@
     let adm = '';
     const sig = {};
 
+    // Optional: Paste your Google OAuth Client ID here if you have one
+    const GOOGLE_CLIENT_ID = '';
+
     const api = async (u, b, h = {}) => {
       const r = await fetch(u, {
         method: b ? 'POST' : 'GET',
@@ -339,6 +647,134 @@
       setTimeout(() => e.classList.remove('on'), 2600);
     };
 
+    /* ================= AUTH SYSTEM (GOOGLE + EMAIL SIGN IN) ================= */
+    let authMode = 'login';
+
+    function getSavedUser() {
+      try {
+        return JSON.parse(localStorage.getItem('nethu_user') || 'null');
+      } catch {
+        return null;
+      }
+    }
+
+    function saveUser(u) {
+      localStorage.setItem('nethu_user', JSON.stringify(u));
+      renderAuthBar();
+      // Sync with backend /api/auth if available
+      fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: u.provider === 'google' ? 'google' : 'login', ...u })
+      }).catch(() => {});
+    }
+
+    function logoutUser() {
+      localStorage.removeItem('nethu_user');
+      renderAuthBar();
+      toast('Signed out successfully 👋');
+    }
+
+    function renderAuthBar() {
+      const bar = $('#authBar');
+      const u = getSavedUser();
+      if (u && u.email) {
+        const initial = (u.name || u.email)[0].toUpperCase();
+        bar.innerHTML = `
+          <div class="user-chip">
+            <div class="user-av">${u.picture ? `<img src="${u.picture}" alt="U">` : initial}</div>
+            <span class="user-name">${u.name || u.email.split('@')[0]}</span>
+            ${u.provider === 'google' ? '<span class="g-tag">G</span>' : ''}
+          </div>
+          <button class="btn-out-mini" onclick="logoutUser()">Logout</button>
+        `;
+      } else {
+        bar.innerHTML = `
+          <button class="btn-google-mini" onclick="startGoogleLogin()">
+            <svg width="14" height="14" viewBox="0 0 48 48">
+              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+            </svg>
+            <span>Google</span>
+          </button>
+          <button class="btn-signin-mini" onclick="openAuth('login')">Sign In</button>
+        `;
+      }
+    }
+
+    function openAuth(mode = 'login') {
+      switchAuthTab(mode);
+      $('#authModal').classList.add('on');
+    }
+    function closeAuth() {
+      $('#authModal').classList.remove('on');
+    }
+    function switchAuthTab(mode) {
+      authMode = mode;
+      $('#tabLogin').classList.toggle('active', mode === 'login');
+      $('#tabSignup').classList.toggle('active', mode === 'signup');
+      $('#nameWrap').style.display = mode === 'signup' ? 'block' : 'none';
+      $('#authSubmitBtn').textContent = mode === 'signup' ? 'Create Account' : 'Sign In';
+    }
+
+    function submitEmailAuth(e) {
+      e.preventDefault();
+      const email = $('#authEmail').value.trim();
+      const pass = $('#authPass').value.trim();
+      const rawName = $('#authName').value.trim();
+      if (!email || !pass) return toast('Email සහ Password ඇතුළත් කරන්න!');
+      const name = rawName || email.split('@')[0];
+      saveUser({ name, email, provider: 'email' });
+      closeAuth();
+      toast(`Welcome ${name} ✅`);
+    }
+
+    function startGoogleLogin() {
+      closeAuth();
+      if (GOOGLE_CLIENT_ID && window.google?.accounts?.id) {
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: (resp) => {
+            try {
+              const payload = JSON.parse(atob(resp.credential.split('.')[1]));
+              saveUser({
+                name: payload.name || payload.email.split('@')[0],
+                email: payload.email,
+                picture: payload.picture || '',
+                provider: 'google'
+              });
+              toast(`Google Sign-In සාර්ථකයි ✅`);
+            } catch {
+              toast('Google login failed');
+            }
+          }
+        });
+        window.google.accounts.id.prompt();
+      } else {
+        $('#googleQuickModal').classList.add('on');
+      }
+    }
+
+    function closeGoogleQuick() {
+      $('#googleQuickModal').classList.remove('on');
+    }
+
+    function finishQuickGoogle(e) {
+      e.preventDefault();
+      const email = $('#gEmail').value.trim();
+      const rawName = $('#gName').value.trim();
+      if (!email) return;
+      const name = rawName || email.split('@')[0];
+      saveUser({ name, email, provider: 'google' });
+      closeGoogleQuick();
+      toast(`Google හරහා Sign In වුණා ✅`);
+    }
+
+    renderAuthBar();
+
+    /* ================= BOT PAIRING & SETTINGS ================= */
     const LBL = { idle: 'Offline', connecting: 'Connecting', code: 'Enter Code', open: 'Online' };
 
     function card(i, s) {
