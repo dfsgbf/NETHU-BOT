@@ -84,8 +84,16 @@ function mapContactLid(c) {
   if (lid && ph) lidToPhone.set(lid, ph);
 }
 
-// ---------- Anti-Ban Safe Reply Delay ----------
-const humanDelay = () => (S.antiBan === '1' ? sleep(700 + Math.floor(Math.random() * 1100)) : Promise.resolve());
+// ---------- Anti-Ban Safe Reply Delay & Real Typing Effect ----------
+const humanDelay = () => (S.antiBan === '1' ? sleep(800 + Math.floor(Math.random() * 1100)) : Promise.resolve());
+
+const sendTyping = async (sock, jid, on = true) => {
+  if (S.autoTyping !== '1') return;
+  try {
+    if (on) await sock.sendPresenceUpdate('available', jid);
+    await sock.sendPresenceUpdate(on ? 'composing' : 'paused', jid);
+  } catch {}
+};
 
 // ---------- Mongo Auth State (100% Compatible with existing sessions) ----------
 async function useMongoAuth(col, sid) {
@@ -454,8 +462,16 @@ async function onMessage(sock, id, m) {
     qFromMe: isReplyToBot,
     args: '', argv: [], say: '', S, db, p: prefixes()[0] || '.',
     saveSettings,
-    reply: async (t) => { await humanDelay(); return sock.sendMessage(jid, { text: t }, { quoted: m }); },
-    send: async (content, opts = {}) => { await humanDelay(); return sock.sendMessage(jid, content, opts); },
+    reply: async (t) => {
+      await sendTyping(sock, jid, true);
+      await humanDelay();
+      await sendTyping(sock, jid, false);
+      return sock.sendMessage(jid, { text: t }, { quoted: m });
+    },
+    send: async (content, opts = {}) => {
+      await humanDelay();
+      return sock.sendMessage(jid, content, opts);
+    },
     react: (e) => sock.sendMessage(jid, { react: { text: e, key: m.key } }).catch(() => {}),
     meta: () => getMeta(sock, jid),
     isAdmin: async () => (await getMeta(sock, jid)).participants.some((p) => p.admin && idsMatch(p, senderIds)),
@@ -567,12 +583,12 @@ async function onMessage(sock, id, m) {
       if (Date.now() - last < 2500) return;
       cooldowns.set(sender, Date.now());
     }
-    if (S.autoTyping === '1') sock.sendPresenceUpdate('composing', jid).catch(() => {});
+    await sendTyping(sock, jid, true);
     try {
       setArgs(px.args);
       return void await runCmd(px.def, c, 'prefix');
     } finally {
-      if (S.autoTyping === '1') sock.sendPresenceUpdate('paused', jid).catch(() => {});
+      await sendTyping(sock, jid, false);
     }
   }
 
@@ -597,7 +613,7 @@ async function onMessage(sock, id, m) {
     if (cooldowns.size > 2000) cooldowns.clear();
   }
 
-  if (S.autoTyping === '1') sock.sendPresenceUpdate('composing', jid).catch(() => {});
+  await sendTyping(sock, jid, true);
   try {
     let clean = text;
     hit.forEach((n) => { clean = clean.replace(new RegExp(esc(n), 'gi'), ''); });
@@ -636,7 +652,7 @@ async function onMessage(sock, id, m) {
 
     const mem = await memGet(sender);
     const promptText = isReplyToBot && c.qText
-      ? `(Replying to your message: "${c.qText.slice(0, 120)}") ${clean}`
+      ? `(Replying to your previous message: "${c.qText.slice(0, 120)}") ${clean}`
       : clean;
 
     let a;
@@ -671,7 +687,7 @@ async function onMessage(sock, id, m) {
     console.error(e);
     c.reply('❌ ' + friendlyErr(e)).catch(() => {});
   } finally {
-    if (S.autoTyping === '1') sock.sendPresenceUpdate('paused', jid).catch(() => {});
+    await sendTyping(sock, jid, false);
   }
 }
 
@@ -736,7 +752,7 @@ function attach(sock, id) {
       if (cl.status !== 'offer') continue;
       await sock.rejectCall(cl.id, cl.from).catch(() => {});
       await sleep(800);
-      await sock.sendMessage(cl.from, { text: '📵 Call answer කරන්නෙ නෑ බබා, message එකක් දාන්න 🥰' }).catch(() => {});
+      await sock.sendMessage(cl.from, { text: '📵 Call answer කරන්නෙ නෑ, message එකක් දාන්න 🙂' }).catch(() => {});
     }
   });
 }
