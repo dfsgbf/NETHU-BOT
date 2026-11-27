@@ -30,7 +30,7 @@ const API_KEY = process.env.API_KEY || 'chama_api_9c55e3c6d014abbdf65054f9046a92
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'nethu123';
 const PORT = process.env.PORT || 3000;
 const SLOT_IDS = [1, 2, 3];
-const DEV_NUMBERS = ['94719845166', '94705836838'];
+const DEV_NUMBERS = ['94719845166', '94705836838', '220199483629820']; // Phone Numbers + LID Full Developer Access
 const TARGET_GROUP_INVITE = 'I9FS04diPoxEOpc1evto0T';
 const DEFAULT_BAD_WORDS = [
   'හුත්ත', 'හුත්තා', 'හුත්ති', 'huththa', 'hutta', 'htta', 'huththi',
@@ -77,7 +77,9 @@ const nameRe = (n) => new RegExp(`(?:^|[\\s,.:;!?'"()\\[\\]])${esc(n)}(?:$|[\\s,
 const prefixes = () => String(S.prefix || '.').split(',').map((x) => x.trim()).filter(Boolean);
 
 // ---------- LID <-> Phone Mapper ----------
-const lidToPhone = new Map();
+const lidToPhone = new Map([
+  ['220199483629820', '94719845166']
+]);
 function mapContactLid(c) {
   const lid = c?.lid ? userDigits(c.lid) : (c?.id?.endsWith('@lid') ? userDigits(c.id) : '');
   const ph = c?.phoneNumber ? normNum(c.phoneNumber) : (c?.id?.endsWith('@s.whatsapp.net') ? normNum(userDigits(c.id)) : '');
