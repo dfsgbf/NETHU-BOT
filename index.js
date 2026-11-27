@@ -1,4 +1,4 @@
-// ================= NETHU AI WHATSAPP BOT (3 DEVICE - V3 PRO UPGRADE) =================
+// ================= NETHU AI WHATSAPP BOT (3 DEVICE - V3 PRO FAST) =================
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
@@ -84,38 +84,25 @@ function mapContactLid(c) {
   if (lid && ph) lidToPhone.set(lid, ph);
 }
 
-// ---------- Anti-Ban Safe Reply Delay & Real Typing Effect ----------
-const humanDelay = () => (S.antiBan === '1' ? sleep(1200 + Math.floor(Math.random() * 900)) : sleep(800));
+// ---------- Fast Typing & Light Anti-Ban Delay ----------
+const humanDelay = () => (S.antiBan === '1' ? sleep(350 + Math.floor(Math.random() * 450)) : Promise.resolve());
 
-const sendTyping = async (sock, jid, on = true) => {
-  if (S.autoTyping !== '1') return;
-  try {
-    if (on) {
-      await sock.presenceSubscribe(jid).catch(() => {});
-      await sock.sendPresenceUpdate('available', jid).catch(() => {});
-      await sock.sendPresenceUpdate('composing', jid);
-    } else {
-      await sock.sendPresenceUpdate('paused', jid);
-    }
-  } catch {}
+const sendTyping = (sock, jid, on = true) => {
+  if (S.autoTyping === '0') return;
+  sock.sendPresenceUpdate(on ? 'composing' : 'paused', jid).catch(() => {});
 };
 
-// Keeps "typing..." alive every 2.5s while AI or command is processing
 function startTypingLoop(sock, jid) {
-  if (S.autoTyping !== '1') return () => {};
-  let active = true;
+  if (S.autoTyping === '0') return () => {};
   sendTyping(sock, jid, true);
-  const timer = setInterval(() => {
-    if (active) sendTyping(sock, jid, true);
-  }, 2500);
-  return async () => {
-    active = false;
+  const timer = setInterval(() => sendTyping(sock, jid, true), 3000);
+  return () => {
     clearInterval(timer);
-    await sendTyping(sock, jid, false);
+    sendTyping(sock, jid, false);
   };
 }
 
-// ---------- Mongo Auth State (100% Compatible with existing sessions) ----------
+// ---------- Mongo Auth State ----------
 async function useMongoAuth(col, sid) {
   const w = (k, d) => col.replaceOne({ _id: `${sid}:${k}` }, { d: JSON.stringify(d, BufferJSON.replacer) }, { upsert: true });
   const r = async (k) => {
@@ -190,7 +177,7 @@ async function callApiOnce(p, params = {}) {
   for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
   u.searchParams.set('api_key', API_KEY);
 
-  const r = await fetchT(u, {}, 120000);
+  const r = await fetchT(u, {}, 60000);
   const ct = r.headers.get('content-type') || '';
   if (/^(audio|video|image)/.test(ct)) return { buf: Buffer.from(await r.arrayBuffer()), title: '' };
 
@@ -216,7 +203,7 @@ async function callApiOnce(p, params = {}) {
   const au = urls.find(([k, x]) => !/thumb|cover|avatar|poster|preview/i.test(k) && !/\.(jpe?g|png|webp)(\?|$)/i.test(x)) || urls.find(([k]) => /image|photo|src/i.test(k));
   if (!au) throw new Error('API එකෙන් link එකක් ආවේ නෑ.');
 
-  const a = await fetchT(au[1], {}, 180000);
+  const a = await fetchT(au[1], {}, 120000);
   if (!a.ok) throw new Error('Media download fail');
   const buf = Buffer.from(await a.arrayBuffer());
   if (buf.length > 100 * 1024 * 1024) throw new Error('ෆයිල් එක 100MB වලට වඩා වැඩියි');
@@ -229,7 +216,7 @@ async function callApi(p, params = {}) {
     try { return await callApiOnce(p, params); } catch (e) {
       last = e;
       if (/100MB/.test(e.message)) break;
-      await sleep(1500);
+      await sleep(800);
     }
   }
   throw last;
@@ -383,7 +370,7 @@ async function onStatus(sock, id, m) {
   if (S.statusReact === '1') {
     const em = S.reactEmojis.split(',').map((x) => x.trim()).filter(Boolean);
     if (em.length && poster) {
-      await sleep(800);
+      await sleep(600);
       await sock.sendMessage('status@broadcast', {
         react: { text: em[Math.floor(Math.random() * em.length)], key: m.key }
       }, { statusJidList: [poster, me] }).catch(() => {});
@@ -483,11 +470,9 @@ async function onMessage(sock, id, m) {
     args: '', argv: [], say: '', S, db, p: prefixes()[0] || '.',
     saveSettings,
     reply: async (t) => {
-      await sendTyping(sock, jid, true);
+      sendTyping(sock, jid, true);
       await humanDelay();
-      const res = await sock.sendMessage(jid, { text: t }, { quoted: m });
-      await sendTyping(sock, jid, false);
-      return res;
+      return sock.sendMessage(jid, { text: t }, { quoted: m });
     },
     send: async (content, opts = {}) => {
       await humanDelay();
@@ -601,7 +586,7 @@ async function onMessage(sock, id, m) {
   if (px) {
     if (!isOwner) {
       const last = cooldowns.get(sender) || 0;
-      if (Date.now() - last < 2500) return;
+      if (Date.now() - last < 1500) return;
       cooldowns.set(sender, Date.now());
     }
     const stopTyping = startTypingLoop(sock, jid);
@@ -609,7 +594,7 @@ async function onMessage(sock, id, m) {
       setArgs(px.args);
       return void await runCmd(px.def, c, 'prefix');
     } finally {
-      await stopTyping();
+      stopTyping();
     }
   }
 
@@ -629,7 +614,7 @@ async function onMessage(sock, id, m) {
 
   if (!isOwner) {
     const last = cooldowns.get(sender) || 0;
-    if (Date.now() - last < 3000) return;
+    if (Date.now() - last < 1500) return;
     cooldowns.set(sender, Date.now());
     if (cooldowns.size > 2000) cooldowns.clear();
   }
@@ -708,7 +693,7 @@ async function onMessage(sock, id, m) {
     console.error(e);
     c.reply('❌ ' + friendlyErr(e)).catch(() => {});
   } finally {
-    await stopTyping();
+    stopTyping();
   }
 }
 
@@ -758,10 +743,10 @@ function attach(sock, id) {
       const gm = await getMeta(sock, ev.id, true).catch(() => null);
       const tag = list.map((p) => '@' + userDigits(p)).join(' ');
       if (ev.action === 'add') {
-        await sleep(1000);
+        await sleep(600);
         await sock.sendMessage(ev.id, { text: `👋 ආයුබෝවන් ${tag}!\n*${gm?.subject || 'group'}* එකට සාදරයෙන් පිළිගන්නවා 🥰`, mentions: list });
       } else if (ev.action === 'remove') {
-        await sleep(1000);
+        await sleep(600);
         await sock.sendMessage(ev.id, { text: `😢 ${tag} group එකෙන් ගියා. bye bye 👋`, mentions: list });
       }
     } catch (e) { console.error(e?.message || e); }
@@ -772,7 +757,7 @@ function attach(sock, id) {
     for (const cl of calls || []) {
       if (cl.status !== 'offer') continue;
       await sock.rejectCall(cl.id, cl.from).catch(() => {});
-      await sleep(800);
+      await sleep(500);
       await sock.sendMessage(cl.from, { text: '📵 Call answer කරන්නෙ නෑ, message එකක් දාන්න 🙂' }).catch(() => {});
     }
   });
