@@ -328,7 +328,7 @@
     } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 
     const firebaseConfig = {
-      apiKey: "AIzaSyCcvPQLZ2oBm3YUTSnuW2rraRVB_1K7ktc",
+      apiKey: "AIzaSyCcvPQLZ2oBm3YUISuuW2rraBVB_lK7ktc",
       authDomain: "heshan-ofc.firebaseapp.com",
       projectId: "heshan-ofc",
       storageBucket: "heshan-ofc.firebasestorage.app",
@@ -345,7 +345,6 @@
       window.location.replace("/");
     };
 
-    // Protect Dashboard: If not logged in, redirect to / (index.html)
     onAuthStateChanged(auth, (user) => {
       if (!user) {
         window.location.replace("/");
