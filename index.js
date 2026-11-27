@@ -25,7 +25,7 @@ process.on('unhandledRejection', (err) => console.error('⚠️ Unhandled Reject
 
 // ---------- Config & Env ----------
 const DEFAULT_MONGO = 'mongodb+srv://diniduheshan2007_db_user:SZD7sfcIU6Einajx@cluster0.ah8jggk.mongodb.net/dark-dinu?retryWrites=true&w=majority&appName=Cluster0';
-const API_BASE = '[https://api.chamindu.site/api/v1](https://api.chamindu.site/api/v1)';
+const API_BASE = 'https://api.chamindu.site/api/v1';
 const API_KEY = process.env.API_KEY || 'chama_api_9c55e3c6d014abbdf65054f9046a920b';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'nethu123';
 const PORT = process.env.PORT || 3000;
@@ -57,8 +57,8 @@ console.log('✅ MongoDB connected');
 
 // ---------- Settings ----------
 const DEF = {
-  botName: 'Nethu', owner: '94719845166', sudo: '94705836838', logo: '[https://files.catbox.moe/17p3nr.jpg](https://files.catbox.moe/17p3nr.jpg)',
-  names: 'nethu,නෙතූ,නෙතු,bbh,sudu,manika,mnikh,baba,raththaran,sudu manika,love,බබා,මැනික,මැණික,සුදු,සුදූ,cudu,රත්තරන්,pnh,babo,baby,janu,ජානු,adare,ආදරේ,patiya,පැටියා,nangi,නංගි',
+  botName: 'Nethu', owner: '94719845166', sudo: '94705836838', logo: 'https://files.catbox.moe/17p3nr.jpg',
+  names: 'nethu,නෙතූ,නෙතු,bbh,bbu,sudu,manika,mnikh,baba,raththaran,sudu manika,love,බබා,මැනික,මැණික,සුදු,සුදූ,cudu,රත්තරන්,pnh,babo,baby,janu,ජානු,adare,ආදරේ,patiya,පැටියා,nangi,නංගි',
   provider: 'chatgpt', geminiKey: '', model: 'gemini-2.5-flash',
   statusSeen: '1', statusReact: '1', reactEmojis: '🥰,❤️,😍,🔥,💖', statusSave: '0',
   autoRead: '0', autoTyping: '1', alwaysOnline: '0', antiBan: '1',
@@ -225,17 +225,31 @@ async function ytFind(q) {
   if (!v) throw new Error('හොයාගන්න බැරි උනා');
   return v;
 }
+
 async function getSong(q) {
   const v = await ytFind(q);
   if (v.seconds > 900) throw new Error('සින්දුව විනාඩි 15කට වඩා දිගයි');
-  const d = await callApi('/youtube/mp3', { url: v.url, quality: '320kbps' });
-  return { buf: d.buf, title: v.title, v };
+  const ytUrl = v.videoId ? `https://www.youtube.com/watch?v=${v.videoId}` : v.url;
+  try {
+    const d = await callApi('/youtube/mp3', { url: ytUrl, quality: '320kbps' });
+    return { buf: d.buf, title: v.title, v };
+  } catch {
+    const d = await callApi('/youtube/mp3', { q: v.title || q, quality: '320kbps' });
+    return { buf: d.buf, title: v.title, v };
+  }
 }
+
 async function getVideo(q) {
   const v = await ytFind(q);
   if (v.seconds > 900) throw new Error('වීඩියෝව විනාඩි 15කට වඩා දිගයි');
-  const d = await callApi('/youtube/download', { url: v.url, quality: '720p', format: 'mp4' });
-  return { buf: d.buf, title: v.title, v };
+  const ytUrl = v.videoId ? `https://www.youtube.com/watch?v=${v.videoId}` : v.url;
+  try {
+    const d = await callApi('/youtube/download', { url: ytUrl, quality: '720p', format: 'mp4' });
+    return { buf: d.buf, title: v.title, v };
+  } catch {
+    const d = await callApi('/youtube/download', { q: v.title || q, quality: '720p', format: 'mp4' });
+    return { buf: d.buf, title: v.title, v };
+  }
 }
 
 // ---------- Message helpers ----------
@@ -564,13 +578,17 @@ async function onMessage(sock, id, m) {
 
   // =========================================================================
   // 2. AI ACTIVATION RULES:
-  //    - Triggered by: Trigger Name OR @Bot Mention OR Reply to Bot message
-  //    - If in a Group: that group MUST have ".set ai on" (gc.ai === 'on')
+  //    - Group: Must have ".set ai on" AND (Trigger Name OR @Mention OR Reply to Bot)
+  //    - Inbox (DM): Trigger Name OR @Mention OR Reply to Bot OR dmAlways === '1'
   // =========================================================================
   const hit = nameList().filter((n) => nameRe(n).test(text));
-  const triggeredByMentionOrReply = isBotMentioned || (isReplyToBot && S.replyToBot !== '0');
-  if (hit.length === 0 && !triggeredByMentionOrReply) return;
-  if (isGroup && gc.ai !== 'on') return;
+  const triggeredByMentionOrReply = isBotMentioned || isReplyToBot;
+  if (isGroup) {
+    if (gc.ai !== 'on') return;
+    if (hit.length === 0 && !triggeredByMentionOrReply) return;
+  } else {
+    if (S.dmAlways !== '1' && hit.length === 0 && !triggeredByMentionOrReply) return;
+  }
 
   if (!isOwner) {
     const last = cooldowns.get(sender) || 0;
