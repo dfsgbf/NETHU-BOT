@@ -25,7 +25,7 @@ process.on('unhandledRejection', (err) => console.error('⚠️ Unhandled Reject
 
 // ---------- Config & Env ----------
 const DEFAULT_MONGO = 'mongodb+srv://diniduheshan2007_db_user:SZD7sfcIU6Einajx@cluster0.ah8jggk.mongodb.net/dark-dinu?retryWrites=true&w=majority&appName=Cluster0';
-const API_BASE = 'https://api.chamindu.site/api/v1';
+const API_BASE = '[https://api.chamindu.site/api/v1](https://api.chamindu.site/api/v1)';
 const API_KEY = process.env.API_KEY || 'chama_api_9c55e3c6d014abbdf65054f9046a920b';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'nethu123';
 const PORT = process.env.PORT || 3000;
@@ -57,12 +57,12 @@ console.log('✅ MongoDB connected');
 
 // ---------- Settings ----------
 const DEF = {
-  botName: 'Nethu', owner: '94719845166', sudo: '94705836838', logo: 'https://files.catbox.moe/17p3nr.jpg',
+  botName: 'Nethu', owner: '94719845166', sudo: '94705836838', logo: '[https://files.catbox.moe/17p3nr.jpg](https://files.catbox.moe/17p3nr.jpg)',
   names: 'nethu,නෙතූ,නෙතු,bbh,sudu,manika,mnikh,baba,raththaran,sudu manika,love,බබා,මැනික,මැණික,සුදු,සුදූ,cudu,රත්තරන්,pnh,babo,baby,janu,ජානු,adare,ආදරේ,patiya,පැටියා,nangi,නංගි',
   provider: 'chatgpt', geminiKey: '', model: 'gemini-2.5-flash',
   statusSeen: '1', statusReact: '1', reactEmojis: '🥰,❤️,😍,🔥,💖', statusSave: '0',
   autoRead: '0', autoTyping: '1', alwaysOnline: '0', antiBan: '1',
-  prefix: '.', mode: 'public', banned: '', antiCall: '0', dmAlways: '0', replyToBot: '0'
+  prefix: '.', mode: 'public', banned: '', antiCall: '0', dmAlways: '0', replyToBot: '1', aiPersona: 'girl'
 };
 
 let S = { ...DEF, ...((await db.collection('settings').findOne({ _id: 'main' })) || {}) };
@@ -428,14 +428,16 @@ async function onMessage(sock, id, m) {
 
   const qMsg = unwrap(ctx?.quotedMessage);
   const rawMentions = ctx?.mentionedJid || [];
+  const isBotMentioned = rawMentions.some((j) => bots.has(userDigits(j)));
   const mentioned = rawMentions.filter((j) => !bots.has(userDigits(j)));
   const qParticipant = ctx?.participant ? jidNormalizedUser(ctx.participant) : null;
+  const isReplyToBot = !!qParticipant && bots.has(userDigits(qParticipant));
 
   // ---- command context ----
   const c = {
     sock, m, jid, id, me, sender, rawSender, isDev, isOwner, isGroup, md, ctx, mentioned, qParticipant,
     qText: qMsg ? textOf(qMsg) : '',
-    qFromMe: !!qParticipant && bots.has(userDigits(qParticipant)),
+    qFromMe: isReplyToBot,
     args: '', argv: [], say: '', S, db, p: prefixes()[0] || '.',
     saveSettings,
     reply: async (t) => { await humanDelay(); return sock.sendMessage(jid, { text: t }, { quoted: m }); },
@@ -561,13 +563,13 @@ async function onMessage(sock, id, m) {
   }
 
   // =========================================================================
-  // 2. STRICT AI ACTIVATION RULES:
-  //    - Must contain one of the configured trigger names (hit.length > 0)
+  // 2. AI ACTIVATION RULES:
+  //    - Triggered by: Trigger Name OR @Bot Mention OR Reply to Bot message
   //    - If in a Group: that group MUST have ".set ai on" (gc.ai === 'on')
-  //    - If in Inbox (DM): works ONLY when a trigger name is used
   // =========================================================================
   const hit = nameList().filter((n) => nameRe(n).test(text));
-  if (hit.length === 0) return;
+  const triggeredByMentionOrReply = isBotMentioned || (isReplyToBot && S.replyToBot !== '0');
+  if (hit.length === 0 && !triggeredByMentionOrReply) return;
   if (isGroup && gc.ai !== 'on') return;
 
   if (!isOwner) {
@@ -584,7 +586,7 @@ async function onMessage(sock, id, m) {
     bots.forEach((d) => { clean = clean.replace(new RegExp('@' + d, 'g'), ''); });
     clean = clean.replace(/^[\s,.:!?]+/, '').trim() || 'hi';
 
-    // 2a. "නෙතු menu" / "nethu ping" — fast command via name
+    // 2a. "නෙතු menu" / "@bot ping" — fast command via name/mention
     const [fw, ...restW] = clean.split(/\s+/);
     const fd = registry.map.get(fw.toLowerCase().replace(/^[^\p{L}\p{N}]+/u, ''));
     if (fd?.fast) {
@@ -615,9 +617,13 @@ async function onMessage(sock, id, m) {
     if (S.geminiKey && md?.type === 'image') imgBuf = await dl(sock, md).catch(() => null);
 
     const mem = await memGet(sender);
+    const promptText = isReplyToBot && c.qText
+      ? `(Replying to your message: "${c.qText.slice(0, 120)}") ${clean}`
+      : clean;
+
     let a;
     try {
-      a = await ai.decide(clean, !!md, mem, imgBuf);
+      a = await ai.decide(promptText, !!md, mem, imgBuf);
     } catch (e) {
       const fb = intentOf(clean, { md, isGroup, relaxed: true });
       if (fb && registry.map.has(fb.cmd)) {
