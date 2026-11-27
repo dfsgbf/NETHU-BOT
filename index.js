@@ -85,15 +85,35 @@ function mapContactLid(c) {
 }
 
 // ---------- Anti-Ban Safe Reply Delay & Real Typing Effect ----------
-const humanDelay = () => (S.antiBan === '1' ? sleep(800 + Math.floor(Math.random() * 1100)) : Promise.resolve());
+const humanDelay = () => (S.antiBan === '1' ? sleep(1200 + Math.floor(Math.random() * 900)) : sleep(800));
 
 const sendTyping = async (sock, jid, on = true) => {
   if (S.autoTyping !== '1') return;
   try {
-    if (on) await sock.sendPresenceUpdate('available', jid);
-    await sock.sendPresenceUpdate(on ? 'composing' : 'paused', jid);
+    if (on) {
+      await sock.presenceSubscribe(jid).catch(() => {});
+      await sock.sendPresenceUpdate('available', jid).catch(() => {});
+      await sock.sendPresenceUpdate('composing', jid);
+    } else {
+      await sock.sendPresenceUpdate('paused', jid);
+    }
   } catch {}
 };
+
+// Keeps "typing..." alive every 2.5s while AI or command is processing
+function startTypingLoop(sock, jid) {
+  if (S.autoTyping !== '1') return () => {};
+  let active = true;
+  sendTyping(sock, jid, true);
+  const timer = setInterval(() => {
+    if (active) sendTyping(sock, jid, true);
+  }, 2500);
+  return async () => {
+    active = false;
+    clearInterval(timer);
+    await sendTyping(sock, jid, false);
+  };
+}
 
 // ---------- Mongo Auth State (100% Compatible with existing sessions) ----------
 async function useMongoAuth(col, sid) {
@@ -465,8 +485,9 @@ async function onMessage(sock, id, m) {
     reply: async (t) => {
       await sendTyping(sock, jid, true);
       await humanDelay();
+      const res = await sock.sendMessage(jid, { text: t }, { quoted: m });
       await sendTyping(sock, jid, false);
-      return sock.sendMessage(jid, { text: t }, { quoted: m });
+      return res;
     },
     send: async (content, opts = {}) => {
       await humanDelay();
@@ -583,12 +604,12 @@ async function onMessage(sock, id, m) {
       if (Date.now() - last < 2500) return;
       cooldowns.set(sender, Date.now());
     }
-    await sendTyping(sock, jid, true);
+    const stopTyping = startTypingLoop(sock, jid);
     try {
       setArgs(px.args);
       return void await runCmd(px.def, c, 'prefix');
     } finally {
-      await sendTyping(sock, jid, false);
+      await stopTyping();
     }
   }
 
@@ -613,7 +634,7 @@ async function onMessage(sock, id, m) {
     if (cooldowns.size > 2000) cooldowns.clear();
   }
 
-  await sendTyping(sock, jid, true);
+  const stopTyping = startTypingLoop(sock, jid);
   try {
     let clean = text;
     hit.forEach((n) => { clean = clean.replace(new RegExp(esc(n), 'gi'), ''); });
@@ -687,7 +708,7 @@ async function onMessage(sock, id, m) {
     console.error(e);
     c.reply('❌ ' + friendlyErr(e)).catch(() => {});
   } finally {
-    await sendTyping(sock, jid, false);
+    await stopTyping();
   }
 }
 
